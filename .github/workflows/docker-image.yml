@@ -1,0 +1,23 @@
+name: Docker Image CI
+
+on:
+  [workflow_dispatch]
+
+jobs:
+ push:
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build . --file Dockerfile --tag buxtoncalvin/ppg
+
+      - name: Log into registry
+        run: docker login -u buxtoncalvin -p ${{ secrets.DOCKERTOKEN }}
+
+      - name: Push image
+        run: docker push buxtoncalvin/ppg
+
+      
