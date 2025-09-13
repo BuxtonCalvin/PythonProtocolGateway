@@ -9,6 +9,8 @@ The InfluxDB output transport allows you to send data from your devices directly
 - **Device Information Tags**: Includes device metadata as InfluxDB tags for easy querying
 - **Flexible Data Types**: Automatically converts data to appropriate InfluxDB field types
 - **Configurable Timeouts**: Adjustable batch size and timeout settings
+- **Connection Monitoring**: Automatic connection health checks and reconnection logic
+- **Robust Error Handling**: Retries failed writes after reconnection attempts
 
 ## Configuration
 
@@ -39,6 +41,11 @@ include_device_info = true
 batch_size = 100
 batch_timeout = 10.0
 log_level = INFO
+
+# Connection monitoring settings
+reconnect_attempts = 5
+reconnect_delay = 5.0
+connection_timeout = 10
 ```
 
 ### Configuration Options
@@ -55,6 +62,29 @@ log_level = INFO
 | `include_device_info` | `true` | Include device information as tags |
 | `batch_size` | `100` | Number of points to batch before writing |
 | `batch_timeout` | `10.0` | Maximum time (seconds) to wait before flushing batch |
+| `reconnect_attempts` | `5` | Number of reconnection attempts before giving up |
+| `reconnect_delay` | `5.0` | Delay between reconnection attempts (seconds) |
+| `connection_timeout` | `10` | Connection timeout for InfluxDB client (seconds) |
+
+## Connection Monitoring
+
+The InfluxDB transport includes robust connection monitoring to handle network issues and server restarts:
+
+### Automatic Health Checks
+- Performs connection health checks every 30 seconds
+- Uses InfluxDB ping command to verify connectivity
+- Automatically attempts reconnection if connection is lost
+
+### Reconnection Logic
+- Attempts reconnection up to `reconnect_attempts` times
+- Waits `reconnect_delay` seconds between attempts
+- Preserves buffered data during reconnection attempts
+- Retries failed writes after successful reconnection
+
+### Error Recovery
+- Gracefully handles network timeouts and connection drops
+- Maintains data integrity by not losing buffered points
+- Provides detailed logging for troubleshooting
 
 ## Data Structure
 
@@ -161,6 +191,7 @@ InfluxDB data can be easily visualized in Grafana:
 - Verify InfluxDB is running: `systemctl status influxdb`
 - Check firewall settings for port 8086
 - Verify host and port configuration
+- Check connection timeout settings if using slow networks
 
 ### Authentication Issues
 - Ensure username/password are correct
@@ -170,8 +201,17 @@ InfluxDB data can be easily visualized in Grafana:
 - Check log levels for detailed error messages
 - Verify database exists and is accessible
 - Check batch settings - data may be buffered
+- Look for reconnection messages in logs
+
+### Data Stops After Some Time
+- **Most Common Issue**: Network connectivity problems or InfluxDB server restarts
+- Check logs for reconnection attempts and failures
+- Verify InfluxDB server is stable and not restarting
+- Consider increasing `reconnect_attempts` and `reconnect_delay` for unstable networks
+- Monitor network connectivity between gateway and InfluxDB server
 
 ### Performance
 - Adjust `batch_size` and `batch_timeout` for your use case
 - Larger batches reduce network overhead but increase memory usage
-- Shorter timeouts provide more real-time data but increase network traffic 
+- Shorter timeouts provide more real-time data but increase network traffic
+- Increase `connection_timeout` for slow networks 
