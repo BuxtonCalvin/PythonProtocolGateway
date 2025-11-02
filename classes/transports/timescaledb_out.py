@@ -86,20 +86,21 @@ class timescaledb_out(transport_base):
     force_float: bool = True
 
     batch_size: int = 100
-    batch_timeout: float = 10.0
+    batch_timeout: int = 10
 
     # persistent backlog settings
     enable_persistent_storage: bool = True
     persistent_storage_path: str = "timescaledb_backlog"
     backlog_file: Optional[str] = None
     max_backlog_size: int = 10000
-    max_backlog_age: int = 86400  # seconds
+    # seconds
+    max_backlog_age: int = 86400
 
     # reconnect/backoff
     reconnect_attempts: int = 5
-    reconnect_delay: float = 5.0
+    reconnect_delay: int = 5
     use_exponential_backoff: bool = True
-    max_reconnect_delay: float = 300.0
+    max_reconnect_delay: int = 300
 
     # hypertable defaults
     hypertable_options_default = {
@@ -143,7 +144,7 @@ class timescaledb_out(transport_base):
         self.force_float = strtobool(settings.get("force_float", fallback=self.force_float))
 
         self.batch_size = settings.getint("batch_size", fallback=self.batch_size)
-        self.batch_timeout = settings.getfloat("batch_timeout", fallback=self.batch_timeout)
+        self.batch_timeout = settings.getint("batch_timeout", fallback=self.batch_timeout)
 
         self.enable_persistent_storage = strtobool(settings.get("enable_persistent_storage", fallback=self.enable_persistent_storage))
         self.persistent_storage_path = settings.get("persistent_storage_path", fallback=self.persistent_storage_path)
@@ -151,9 +152,9 @@ class timescaledb_out(transport_base):
         self.max_backlog_age = settings.getint("max_backlog_age", fallback=self.max_backlog_age)
 
         self.reconnect_attempts = settings.getint("reconnect_attempts", fallback=self.reconnect_attempts)
-        self.reconnect_delay = settings.getfloat("reconnect_delay", fallback=self.reconnect_delay)
+        self.reconnect_delay = settings.getint("reconnect_delay", fallback=self.reconnect_delay)
         self.use_exponential_backoff = strtobool(settings.get("use_exponential_backoff", fallback=self.use_exponential_backoff))
-        self.max_reconnect_delay = settings.getfloat("max_reconnect_delay", fallback=self.max_reconnect_delay)
+        self.max_reconnect_delay = settings.getint("max_reconnect_delay", fallback=self.max_reconnect_delay)
 
         # hypertable options copy + overrides from settings
         self.hypertable_options = dict(self.hypertable_options_default)
