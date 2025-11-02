@@ -3,3 +3,5 @@ paho-mqtt
 pyserial
 python-can
 influxdb
+sqlalchemy-timescaledb
+psycopg2-binary

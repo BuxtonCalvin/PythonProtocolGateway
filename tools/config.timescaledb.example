@@ -1,0 +1,52 @@
+[general]
+log_level = DEBUG
+
+[transport.modbus_tcp] 
+log_level = DEBUG
+transport = modbus_tcp
+protocol_version = eg4_18kpv
+analyze_protocol = false
+write = false
+host = 10.17.2.65
+port = 502
+bridge = transport.timescaledb
+manufacturer = EG4
+model = 18KPV
+serial_number = 123456789
+read_interval = 15
+
+[transport.timescaledb]
+log_level = DEBUG
+transport = timescaledb_out
+host = 10.17.2.42
+port = 5431
+database = solar
+username = 
+password = 
+
+# all of the below are optional
+
+# device info settings
+include_device_info = true
+force_float = true
+batch_size = 100
+batch_timeout = 10.0
+
+# enables backup metric storage when timescaledb is unreachable
+enable_persistent_storage = true
+persistent_storage_path = "timescaledb_backlog"
+max_backlog_size = 10000
+max_backlog_age = 86400  # seconds
+
+# Connection monitoring settings 
+reconnect_attempts = 5
+reconnect_delay = 5.0
+
+# Exponential backoff settings 
+use_exponential_backoff = true
+max_reconnect_delay = 300.0
+
+# hypertable settings
+chunk_time_interval = "7 days"
+drop_after = "1 year"
+#
