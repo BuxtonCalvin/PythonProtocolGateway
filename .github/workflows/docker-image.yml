@@ -29,5 +29,3 @@ jobs:
           tags: |
             buxtoncalvin/ppg:latest
             buxtoncalvin/ppg:${{ steps.date.outputs.NOW }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max  
