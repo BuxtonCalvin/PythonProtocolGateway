@@ -79,6 +79,7 @@ class transport_base:
 
     _log : logging.Logger = None
 
+
     def __init__(self, settings : "SectionProxy") -> None:
 
         self.transport_name = settings.name #section name

@@ -12,7 +12,7 @@ Features:
  - Registry-aware validation of incoming data dicts
  - OS-local timestamps
 """
-
+import logging
 import os
 import json
 import threading
@@ -71,6 +71,7 @@ class DeviceMetrics(Base):
 
 
 class timescaledb_out(transport_base):
+    _log : logging.Logger = None
     """
     TimescaleDB transport with hypertable, continuous aggregates and rollup support.
     """
