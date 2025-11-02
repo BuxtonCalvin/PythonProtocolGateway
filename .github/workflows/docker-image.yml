@@ -1,0 +1,33 @@
+name: Docker Image CI
+
+on:
+  [workflow_dispatch]
+
+jobs:
+ push:
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get current date for tag
+        id: date
+        run: echo "NOW=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+
+      - name: Log into registry
+        run: docker login -u buxtoncalvin -p ${{ secrets.DOCKERTOKEN }}
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3      
+ 
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            buxtoncalvin/ppg:latest
+            buxtoncalvin/ppg:${{ steps.date.outputs.NOW }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max  
