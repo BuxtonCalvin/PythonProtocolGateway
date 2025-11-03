@@ -30,21 +30,22 @@ password =
 include_device_info = true
 force_float = true
 batch_size = 100
-batch_timeout = 10.0
+batch_timeout = 10
 
 # enables backup metric storage when timescaledb is unreachable
 enable_persistent_storage = true
 persistent_storage_path = "timescaledb_backlog"
 max_backlog_size = 10000
-max_backlog_age = 86400  # seconds
+# seconds
+max_backlog_age = 86400  
 
 # Connection monitoring settings 
 reconnect_attempts = 5
-reconnect_delay = 5.0
+reconnect_delay = 5
 
 # Exponential backoff settings 
 use_exponential_backoff = true
-max_reconnect_delay = 300.0
+max_reconnect_delay = 300
 
 # hypertable settings
 chunk_time_interval = "7 days"

@@ -75,7 +75,7 @@ class transport_base:
     connected : bool = False
 
     on_message : Callable[["transport_base", registry_map_entry, str], None] = None
-    ''' callback, on message recieved '''
+    ''' callback, on message received '''
 
     _log : logging.Logger = None
 

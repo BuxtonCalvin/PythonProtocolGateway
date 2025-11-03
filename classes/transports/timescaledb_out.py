@@ -20,6 +20,7 @@ import time
 from datetime import datetime, timezone
 from queue import Queue
 from typing import Any, Dict, List, Optional
+from configparser import SectionProxy
 
 from sqlalchemy import (
     create_engine,
@@ -71,7 +72,7 @@ class DeviceMetrics(Base):
 
 
 class timescaledb_out(transport_base):
-    _log : logging.Logger = None
+
     """
     TimescaleDB transport with hypertable, continuous aggregates and rollup support.
     """
@@ -133,7 +134,7 @@ class timescaledb_out(transport_base):
         "enable_rollups": True,
     }
 
-    def __init__(self, settings):
+    def __init__(self, settings: SectionProxy):
         # load configuration from SectionProxy
         self.host = settings.get("host", fallback=self.host)
         self.port = settings.getint("port", fallback=self.port)
@@ -181,6 +182,9 @@ class timescaledb_out(transport_base):
         self.daily_rollup_start = settings.get("daily_rollup_start", fallback=self.rollup_defaults["daily_rollup_start"])
         self.weekly_rollup_start = settings.get("weekly_rollup_start", fallback=self.rollup_defaults["weekly_rollup_start"])
         self.monthly_rollup_start = settings.get("monthly_rollup_start", fallback=self.rollup_defaults["monthly_rollup_start"])
+        
+        self.write_enabled = True  # TimeScaleDB output is always write-enabled
+        super().__init__(settings)
 
         # init runtime
         self.engine = None
@@ -536,11 +540,20 @@ class timescaledb_out(transport_base):
                 source = "device_metrics_daily"
             _create_rollup(source, "device_metrics_monthly_rollup", self.monthly_rollup_bucket, self.monthly_rollup_start, self.monthly_rollup_bucket)
 
+    def write_data(self, data: dict[str, str], from_transport: transport_base):
+        """Write data to TimescaleDB if enabled and connected."""
+        if not (self.write_enabled and self.connected):
+            return
+
+        # Process and write data
+        self._ensure_device_info(data, from_transport)
+        self.collect_and_queue_metrics(data, from_transport)
+
     # -------------------------
     # Ensure single device_info entry
     # -------------------------
-    def _ensure_device_info(self, from_transport: transport_base):
-        if not self.include_device_info or not self.connected:
+    def _ensure_device_info(self, data: dict[str, str], from_transport: transport_base):
+        if not self.include_device_info:
             return
         try:
             existing = self.session.execute(
@@ -583,6 +596,8 @@ class timescaledb_out(transport_base):
         data: live readings dict from polling callback (variable_name -> value)
         from_transport: transport object (for device metadata and protocolSettings registry maps)
         """
+        self._log.debug(f"write data from [{from_transport.transport_name}] to  timescaledb_out transport")
+        self._log.debug(f"Data: {data}")
         try:
             if not self.connected:
                 self._log.warning("[TimescaleDB] Not connected — storing points to persistent backlog")
