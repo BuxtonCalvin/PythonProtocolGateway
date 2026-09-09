@@ -141,7 +141,7 @@ def _install_webserver_logging() -> None:
 
     # ── Non-Blocking Queue Setup ───────────────────────────────────────────
     log_queue: _queue.SimpleQueue[logging.LogRecord] = _queue.SimpleQueue()
-    queue_handler = logging.handlers.QueueHandler(log_queue)  # type: ignore
+    queue_handler = logging.handlers.QueueHandler(log_queue)
 
     # Attach the filter to the queue_handler here
     # This guarantees it processes records from ALL intercepted loggers
@@ -185,10 +185,10 @@ def _install_webserver_logging() -> None:
 # Module-level path constants — resolved relative to this file
 # (classes/WebServer/main.py → classes/WebServer/)
 # ---------------------------------------------------------------------------
-_WEB_DIR:      Path = Path(__file__).resolve().parent
+_WEB_DIR:       Path = Path(__file__).resolve().parent
 _TEMPLATES_DIR: Path = _WEB_DIR / "templates"
-_STATIC_DIR:   Path = _WEB_DIR / "static"
-_ALEMBIC_INI:  Path = _WEB_DIR / "alembic.ini"
+_STATIC_DIR:    Path = _WEB_DIR / "static"
+_ALEMBIC_INI:   Path = _WEB_DIR / "alembic.ini"
 
 
 # ---------------------------------------------------------------------------
@@ -238,7 +238,7 @@ def _collect_metrics_ports(gateway_instance: object | None) -> dict[int, list[st
     """
     ports: dict[int, list[str]] = {}
     for bridge in _get_prometheus_bridges(gateway_instance):
-        port = getattr(bridge, "metrics_port", None)
+        port: int | None = getattr(bridge, "metrics_port", None)
         if port is None:
             continue
         path: str = getattr(bridge, "metrics_path", "/metrics")
@@ -263,8 +263,8 @@ class RestrictPortMiddleware:
 
     def __init__(self, app: ASGIApp, restricted_port: int, allowed_prefixes: tuple[str, ...]) -> None:
         self.app: ASGIApp = app
-        self.restricted_port = restricted_port
-        self.allowed_prefixes = allowed_prefixes
+        self.restricted_port: int = restricted_port
+        self.allowed_prefixes: tuple[str, ...] = allowed_prefixes
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] == "http":
@@ -311,7 +311,7 @@ def _mount_prometheus_bridges(app: FastAPI, gateway_instance: object | None) -> 
     the metrics_path/metrics_port of a Prometheus bridge requires a full
     process restart to take effect, not just a config commit.
     """
-    prometheus_bridges = _get_prometheus_bridges(gateway_instance)
+    prometheus_bridges: List[object] = _get_prometheus_bridges(gateway_instance)
     if not prometheus_bridges:
         return
 
@@ -337,7 +337,7 @@ def _mount_prometheus_bridges(app: FastAPI, gateway_instance: object | None) -> 
         # at runtime; it has no runtime effect of its own, and lets typed
         # attribute access below (bridge.metrics_port, etc.) type-check
         # normally instead of needing getattr() everywhere.
-        bridge = cast(_PrometheusOut, raw_bridge)
+        bridge: _PrometheusOut = cast(_PrometheusOut, raw_bridge)
         name: str = getattr(bridge, "transport_name", "?")
         mount_path: str = getattr(bridge, "metrics_path", "/metrics")
 
@@ -358,19 +358,9 @@ def _mount_prometheus_bridges(app: FastAPI, gateway_instance: object | None) -> 
             continue
 
         mounted_paths.add(mount_path)
-        extra_port: int | None = bridge.metrics_port
+        extra_port: int | None = cast("int | None", bridge.metrics_port)
         reachable_port: int = extra_port if extra_port is not None else _current_port
-        # NOTE: this does NOT update the "Configured Devices" dashboard --
-        # that table (index.html's "{{ b.host }}:{{ b.port }}") reads
-        # host/port as literal Setting DB rows sourced from config.cfg text
-        # (see device_service.get_nav_data()), entirely independent of this
-        # live transport object. Setting bridge.host/bridge.port here was a
-        # mistake in an earlier version of this function -- verified no
-        # code anywhere reads those two attributes off a live transport
-        # instance, so it was inert. The actual dashboard fix is a
-        # host/port config.cfg key (see transport_defaults.json's
-        # prometheus_out entry and documentation/bridges/Prometheus/
-        # prometheus.md's "Dashboard Host/Port Display" section).
+
         if extra_port is None:
             _log.info(
                 "Prometheus bridge '%s' mounted at %s on the web UI app "
@@ -391,12 +381,13 @@ def _mount_prometheus_bridges(app: FastAPI, gateway_instance: object | None) -> 
 
 def create_app(
     config_path: Path,
-    log_file: str,
-    log_dir: str,
+    config_dir: Path,
+    db_dir: Path,
+    gateway_instance: object,
+    gateway_manager: GatewayManagerLike,
+    log_path: Path,
     project_root: Path,
-    config_dir: Path | None = None,
-    gateway_instance: object | None = None,
-    gateway_manager: GatewayManagerLike | None = None,
+    protocols_dir: Path,
 
     ) -> FastAPI:
     """
@@ -405,11 +396,6 @@ def create_app(
     config_path   — fully-resolved path to config.cfg
     project_root  — root of MultiProtocolGateway (contains protocols/, classes/)
     """
-    db_dir: Path = config_dir / "data-db" if config_dir else project_root / "config" / "data-db"
-
-    protocols_dir: Path = project_root / "protocols"
-    if not protocols_dir.exists():
-        _log.warning(f"Protocols directory missing at {protocols_dir}")
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -467,23 +453,22 @@ def create_app(
         _log.info(f"Database {engine.url} initialized and migrations applied.")
 
         # State management
-        app.state.config_path    = config_path
-        app.state.project_root   = project_root
-        app.state.protocols_dir  = protocols_dir
-        app.state.transports_dir = project_root / "classes" / "transports"
-        app.state.config_dir     = config_dir or config_path.parent
-        app.state.log_file       = log_file
-        app.state.log_dir        = log_dir
-        app.state.db_dir         = db_dir
+        app.state.config_dir      = config_dir or config_path.parent
+        app.state.config_path     = config_path
+        app.state.db_dir          = db_dir
+        app.state.gateway         = gateway_instance
+        app.state.gateway_manager = gateway_manager
+        app.state.log_path        = log_path
+        app.state.project_root    = project_root
+        app.state.protocols_dir   = protocols_dir
+        app.state.scanner         = scanner
+        app.state.transports_dir  = project_root / "classes" / "transports"
 
         # Seed/update the setting_descriptions table on every startup
         with session_scope() as db:
             n, _ = seed_setting_descriptions(db, app.state.transports_dir)
             if n:
                 _log.info("Setting descriptions: %d rows seeded/updated", n)
-        app.state.gateway        = gateway_instance
-        app.state.gateway_manager = gateway_manager
-        app.state.scanner        = scanner
 
         # Mount any configured Prometheus bridge's /metrics onto this same
         # app/port. See _mount_prometheus_bridges() docstring for the one
@@ -503,8 +488,6 @@ def create_app(
             live gateway from it, same as a commit would, and refresh
             app.state.gateway afterward since reload() may have fallen back
             to the last-known-good backup instead of the (broken) edit."""
-            if gateway_manager is None:
-                return
             status: ReloadStatusLike = gateway_manager.reload(trigger="file_watch")
             app.state.gateway = gateway_manager.current
             if not status.ok:
@@ -512,7 +495,7 @@ def create_app(
 
         watcher: FileWatcher = FileWatcher(
             scanner, config_path, protocols_dir,
-            on_config_changed=_on_config_changed if gateway_manager is not None else None,
+            on_config_changed=_on_config_changed,
         )
         watcher.start()
         app.state.file_watcher = watcher
@@ -576,16 +559,16 @@ def create_app(
     # Routers
     # ------------------------------------------------------------------
 
-    app.include_router(devices_router)
-    app.include_router(transport_settings_router)
-    app.include_router(protocols_router)
-    app.include_router(commit_router)
     app.include_router(analysis_router)
+    app.include_router(bridges_router)
+    app.include_router(commit_router)
+    app.include_router(devices_router)
+    app.include_router(gateway_status_router)
     app.include_router(help_router)
     app.include_router(pages_router)
-    app.include_router(bridges_router)
+    app.include_router(protocols_router)
     app.include_router(timescale_router)
-    app.include_router(gateway_status_router)
+    app.include_router(transport_settings_router)
 
     # ------------------------------------------------------------------
     # Core routes
@@ -667,10 +650,9 @@ _current_port: int = 1717
 
 def start_webserver(
     config_file_path: Path,
-    log_file: str,
-    log_dir: str,
-    gateway_instance: GatewayInstanceLike | None = None,
-    gateway_manager: GatewayManagerLike | None = None,
+    log_path: Path,
+    gateway_instance: GatewayInstanceLike,
+    gateway_manager: GatewayManagerLike,
     port: int = 1717,
 ) -> None:
     """
@@ -679,19 +661,15 @@ def start_webserver(
 
     config_file_path   — the fully-resolved Path to config.cfg as built by
                     protocol_gateway.main() (e.g. <root>/config/config.cfg)
-    config_file  fully parsed config file.
-
-
-    project_root is derived by walking parent directories until a folder
-    containing pyproject.toml is found — matching the same discovery logic
-    used in protocol_gateway.main().
-
+    log_path     — the single, already-resolved absolute Path of the log
+                    file, as set by Protocol_Gateway._setup_logging() and
+                    exposed via the Protocol_Gateway instance's own .log_path.
     Usage in protocol_gateway.main():
 
         config_path: Path = root / "config" / config_file
         manager = GatewayManager(config_file, config_path)
         mpg = manager.start()
-        start_webserver(config_path, log_file, log_dir, gateway_instance=mpg, gateway_manager=manager)
+        start_webserver(config_path, mpg.log_path, gateway_instance=mpg, gateway_manager=manager)
         # run() lives on its own thread now (started inside manager.start());
         # this thread just needs to stay alive for the process to keep running.
     """
@@ -702,18 +680,23 @@ def start_webserver(
     config_path: Path  = config_file_path.resolve()  # with file name.
     config_dir: Path   = config_path.parent          # e.g. <root>/config/
     project_root: Path = config_dir.parent           # e.g. <root>/
+    db_dir: Path = config_dir / "data-db" if config_dir else project_root / "config" / "data-db"
+    protocols_dir: Path = project_root / "protocols"
+    if not protocols_dir.exists():
+        _log.warning(f"Protocols directory missing at {protocols_dir}")
 
     _log.info(f"WebServer config_path  : {config_path}")
     _log.info(f"WebServer project_root : {project_root}")
 
     app: FastAPI = create_app(
         config_path=config_path,
-        log_file= log_file,
-        log_dir=log_dir,
-        project_root=project_root,
         config_dir=config_dir,
+        db_dir=db_dir,
         gateway_instance=gateway_instance,
         gateway_manager=gateway_manager,
+        log_path=log_path,
+        project_root=project_root,
+        protocols_dir=protocols_dir,
     )
 
     uv_config = uvicorn.Config(
@@ -759,5 +742,5 @@ def start_webserver(
 
     # Store server reference on gateway so it can trigger graceful shutdown
     # via:  mpg.web_server.should_exit = True
-    if gateway_instance is not None:
-        gateway_instance.web_server = server
+
+    gateway_instance.web_server = server

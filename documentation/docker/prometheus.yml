@@ -33,14 +33,10 @@ global:
   evaluation_interval: 15s
 
 scrape_configs:
-  # Prometheus scraping itself — useful baseline sanity check
-  - job_name: "prometheus"
-    static_configs:
-      - targets: ["localhost:9090"]
 
   # Multi Protocol Gateway — prometheus_out bridge's dedicated metrics_port
   - job_name: "mpg"
     scrape_interval: 15s
     metrics_path: /metrics
     static_configs:
-      - targets: ["mpg:9110"]
+      - targets: ["mpg:9110"]   # - targets: ['10.17.2.42:9110']  # alternative: host IP address instead of container hostname

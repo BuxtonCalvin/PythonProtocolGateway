@@ -32,7 +32,7 @@
  *   7. Tabs
  *   8. Tables (generic + the compact "mini table" panel variant)
  *   9. Modals (light/dark-adaptive + permanently-dark "utility" variant)
- *  10. Create Device / Create Protocol wizard
+ *  10. Create Scraper / Create Protocol wizard
  *  11. HTMX & interaction utilities
  *  12. Page-specific: View Log colorization
  *  13. Page-specific: Help / Docs article renderer
@@ -620,7 +620,7 @@ aside .theme-input {
 }
 
 /* ── Column header row above a wizard-driven editable grid/table ── */
-/* (Create Device settings key/value/default row, Create Protocol         */
+/* (Create Scraper settings key/value/default row, Create Protocol         */
 /* Register Map CSV header). Theme-adaptive, unlike a hardcoded            */
 /* bg-mpg-800 strip, so it stays readable in light mode too.               */
 .wizard-col-header {
@@ -767,8 +767,8 @@ aside .theme-input {
 
 
 /* ══════════════════════════════════════════════════════════════════════
-   10. CREATE DEVICE / CREATE PROTOCOL WIZARD
-   Shared by create_device.html and create_protocol.html — both are a
+   10. Create Scraper / CREATE PROTOCOL WIZARD
+   Shared by create_scraper.html and create_protocol.html — both are a
    linear "confirm each field with +" wizard feeding a live preview and
    an editable grid. See section 5 for .create-add-btn and section 8 for
    .wizard-col-header / .wizard-table-row.

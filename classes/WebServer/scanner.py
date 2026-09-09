@@ -69,6 +69,14 @@ EMPTY_TRANSPORT_ENTRY: TransportLibraryEntry = {"classification": "", "keys": {}
 # ---------------------------------------------------------------------------
 TRANSPORT_BASE_KEYS: dict[str, str] = get_transport_base_keys()
 
+# The WebServer's own default port -- see
+# classes.WebServer.main.start_webserver()'s `port` parameter. Used as the
+# fallback for a prometheus_out section's derived, display-only `port` when
+# that bridge's own metrics_port is unset. There's no config-based way to
+# override the WebServer's actual port today, so this constant and that
+# parameter's default must be kept in sync by hand if that ever changes.
+PROMETHEUS_OUT_DEFAULT_PORT: int = 1717
+
 
 # ---------------------------------------------------------------------------
 # Config parser  (reuses the CustomConfigParser from protocol_gateway)
@@ -1196,6 +1204,87 @@ class Scanner:
                     seen_setting_keys.add((section, key))
                     stats["settings_upserted"] += 1
 
+                # ------------------------------------------------------------
+                # Derive host/port for prometheus_out sections
+                # ------------------------------------------------------------
+                # prometheus_out has no real "connect out to" host/port the
+                # way most transports do -- it's scraped, not connecting
+                # out. host/port here exist purely so the "Configured
+                # Devices" dashboard's Host column (device_service.
+                # get_nav_data(), which reads these two keys as plain
+                # Setting rows) shows something meaningful for this bridge
+                # too, same as every other transport type.
+                #
+                # Deliberately NOT independently configurable: computed
+                # fresh on every scan from this section's actual
+                # metrics_port (falling back to PROMETHEUS_OUT_DEFAULT_PORT
+                # -- the WebServer's own default port, see
+                # classes.WebServer.main.start_webserver()'s `port`
+                # parameter -- when metrics_port is unset), so they can
+                # never drift out of sync with it the way two independently
+                # user-edited values could. Any literal host/port a user
+                # has in config.cfg for a prometheus_out section is
+                # intentionally ignored and overwritten here -- there is
+                # deliberately only one source of truth (metrics_port).
+                #
+                # cfg_is_truth=True is forced (regardless of
+                # self._cfg_is_truth) because these two values are never a
+                # "staged, uncommitted edit" -- they should always reflect
+                # the current config.cfg state immediately, every scan.
+                # ------------------------------------------------------------
+                # Derive host/port for prometheus_out sections
+                # ------------------------------------------------------------
+                # prometheus_out has no real "connect out to" host/port the
+                # way most transports do -- it's scraped, not connecting
+                # out. host/port here exist purely so the "Configured
+                # Devices" dashboard's Host column (device_service.
+                # get_nav_data(), which reads these two keys as plain
+                # Setting rows) shows something meaningful for this bridge
+                # too, same as every other transport type.
+                #
+                # Deliberately NOT independently configurable: computed
+                # fresh on every scan from this section's actual
+                # metrics_port (falling back to PROMETHEUS_OUT_DEFAULT_PORT
+                # -- the WebServer's own default port, see
+                # classes.WebServer.main.start_webserver()'s `port`
+                # parameter -- when metrics_port is unset), so they can
+                # never drift out of sync with it the way two independently
+                # user-edited values could. Any literal host/port a user
+                # has in config.cfg for a prometheus_out section is
+                # intentionally ignored and overwritten here -- there is
+                # deliberately only one source of truth (metrics_port).
+                #
+                # cfg_is_truth=True is forced (regardless of
+                # self._cfg_is_truth) because these two values are never a
+                # "staged, uncommitted edit" -- they should always reflect
+                # the current config.cfg state immediately, every scan.
+                # Without this, an existing row's value_staged (what the
+                # dashboard actually reads -- see
+                # device_service._get_section_keys()) would NOT update
+                # after the first scan, silently reintroducing the exact
+                # host/port drift problem this mechanism exists to prevent.
+                #
+                # IMPORTANT: transport_type here is the broad CATEGORY
+                # _classify_transport() returns ("scraper" | "bridge" |
+                # "general") -- see that function's own docstring -- NEVER
+                # the literal transport name. An earlier version of this
+                # fix mistakenly compared transport_type itself against
+                # "prometheus_out", which can never be true (prometheus_out
+                # classifies as "bridge") and silently never ran. The
+                # literal transport name is a separate value, read directly
+                # from the section's own `transport =` config.cfg line.
+                literal_transport_name: str = keys.get("transport", "").strip()
+                if literal_transport_name == "prometheus_out":
+                    derived_port: str = keys.get("metrics_port", "").strip() or str(PROMETHEUS_OUT_DEFAULT_PORT)
+                    for derived_key, derived_value in (("host", "0.0.0.0"), ("port", derived_port)):  # noqa: S104
+                        _upsert_setting(
+                            db, section, derived_key, derived_value, transport_type,
+                            default_value=derived_value,
+                            cfg_is_truth=True,
+                        )
+                        seen_setting_keys.add((section, derived_key))
+                        stats["settings_upserted"] += 1
+
             # ----------------------------------------------------------------
             #  Add known-but-unset keys for each transport section
             #    (so the UI can show all possible config options)
@@ -1240,6 +1329,22 @@ class Scanner:
                         registry_keys[k] = ""
 
                 for k, default_v in registry_keys.items():
+                    if transport_name == "prometheus_out" and k in ("host", "port"):
+                        # Computed every scan from metrics_port in the first
+                        # loop above (see "Derive host/port for
+                        # prometheus_out sections") -- never touch them here,
+                        # or this generic "known-but-unset" path would
+                        # immediately overwrite that computed value with an
+                        # inactive, blank placeholder row within the same
+                        # scan pass, since it still finds them absent from
+                        # `keys` (config.cfg's literal text was never
+                        # written to). NOTE: transport_name (the literal
+                        # transport name, e.g. "prometheus_out") -- not
+                        # transport_type, which is only the broad "scraper"
+                        # | "bridge" | "general" category and can never
+                        # equal "prometheus_out" (see the near-identical bug
+                        # this fixed in the first loop above).
+                        continue
                     if k not in keys:  # not already set in config.cfg
                         _upsert_setting(
                             db, section, k,

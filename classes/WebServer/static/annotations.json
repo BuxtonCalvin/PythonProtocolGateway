@@ -210,7 +210,7 @@
       "fill_color": "rgba(14,165,233,0.18)"
     }
   ],
-  "create_device": [
+  "create_scraper": [
     {
       "id": "create-transport-name",
       "x_percent": 47.9,
@@ -962,7 +962,7 @@
     "pages__transport-library": "transport_library",
     "pages__transport-settings": "transport_settings_trunc",
     "device__influxdb": "device__bridge_influxdb",
-    "pages__create-device": "create_device",
+    "pages__create-scraper": "create_scraper",
     "pages__analyze*": "analysis",
     "device__influxdb3": "device__bridge_influx3db",
     "pages__create-protocol": "create_protocol",

@@ -331,8 +331,6 @@
     "metrics_path": "/metrics",
     "staleness_multiplier": "3.0",
     "max_label_value_length": "128",
-    "metrics_port": "",
-    "host": "0.0.0.0",
-    "port": "1717"
+    "metrics_port": ""
   }
 }

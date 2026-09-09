@@ -78,10 +78,11 @@ stale_check_interval = 5.0
 | `histogram_buckets` | `` (default buckets) | Comma-separated float bucket boundaries for histogram fields |
 | `metrics_path` | `/metrics` | Path this bridge's metrics are served under on the WebServer's own app (default port 1717) |
 | `metrics_port` | (none) | Optional additional port also serving `metrics_path`, restricted to serve nothing else — one extra socket on the same server/event loop, not a second process. See "Dedicated Metrics Port" below |
-| `host` / `port` | `0.0.0.0` / `1717` | Display-only — shown on the dashboard's Host column. Not read by this bridge at runtime; keep in sync with `metrics_port` yourself. See "Dashboard Host/Port Display" below |
 | `staleness_multiplier` | `3.0` | A machine is flagged stale once this many multiples of its own `read_interval` have elapsed since its last write |
 | `staleness_check_interval` | `5.0` | Seconds between background staleness sweeps |
 | `device_name` | `Prometheus MPG Bridge` | Name for the bridge itself, used only in logs/notifications — distinct from any individual machine's `device_name` label value |
+
+The dashboard also shows a `host`/`port` for this bridge, but those aren't settings you configure — see "Dashboard Host/Port Display" below.
 
 ## Dedicated Metrics Port
 
@@ -104,20 +105,14 @@ If more than one Prometheus bridge is configured with the same `metrics_port`, t
 
 The "Configured Devices" dashboard (the app's home page) shows a Host column for every scraper and bridge. For most bridges (timescaledb, influxdb3_out, etc.) that column is a real, literal `host`/`port` config key the bridge connects *out* to. `prometheus_out` is different — it doesn't connect out anywhere, it's *scraped*, so those two keys don't exist there naturally.
 
-To make the dashboard show something meaningful anyway, `host`/`port` were added as informational, display-only config keys for `prometheus_out` in `transport_defaults.json` (default `0.0.0.0` / `1717`, matching what the bridge serves on by default). **These are display-only** — `prometheus_out.py` itself never reads a `host`/`port` config key; the bridge's actual serving address is governed entirely by `metrics_path`/`metrics_port` (above).
+To make the dashboard show something meaningful anyway, the config scanner (`classes/WebServer/scanner.py`) automatically **derives** `host`/`port` for every `prometheus_out` section on every scan:
 
-**This means they can drift.** If you set `metrics_port = 9110`, the dashboard's `port` value won't automatically follow unless you also set `port = 9110` yourself:
+- `host` is always `0.0.0.0`.
+- `port` is `metrics_port` if you've set one, otherwise the WebServer's own default port (1717).
 
-```ini
-[prometheus_output]
-type = prometheus_out
-metrics_path = /metrics
-metrics_port = 9110
-host = 0.0.0.0
-port = 9110
-```
+This happens on every scan (startup, or whenever `config.cfg` changes and MPG rescans) — so if you change `metrics_port`, the dashboard's `port` updates automatically the next time MPG rescans. There's nothing to keep in sync by hand.
 
-**If you already had a `[prometheus_output]` section configured before this `host`/`port` display feature existed**, adding these keys to `transport_defaults.json` alone won't retroactively populate your dashboard — the scanner only writes a real (non-empty) value into the database when the key is *literally present in config.cfg*; a JSON-registry default alone only makes it appear as an available-but-empty field in the settings editor. Add the two lines above directly to your existing `[prometheus_output]` section, then let MPG rescan (save the file, or restart) to pick them up.
+**`host`/`port` are not independently configurable for this bridge.** If you write literal `host = ...` / `port = ...` lines under `[prometheus_output]` in `config.cfg`, they're intentionally ignored — the scanner overwrites them with the derived value on the next scan. `metrics_port` (above) is the only setting that actually controls this bridge's serving address; `host`/`port` are a read-only reflection of it, purely for the dashboard.
 
 ## Metric Type Classification
 
