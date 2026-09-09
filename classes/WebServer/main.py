@@ -44,21 +44,20 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import List, Protocol, cast
+from typing import List, Protocol
 
 import uvicorn
 from fastapi import FastAPI, Request
-from fastapi.responses import PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.engine import Engine
-from starlette.types import ASGIApp, Receive, Scope, Send
 
 from classes.WebServer.models import Base, ConfigBackup
 
 from .database import ensure_app_state, init_db, run_migrations, session_scope
 from .file_watcher import FileWatcher
 from .routers.analysis import router as analysis_router
+from .routers.bridges import collect_prometheus_metrics_ports, mount_prometheus_bridges
 from .routers.bridges import router as bridges_router
 from .routers.commit import router as commit_router
 from .routers.devices import router as devices_router
@@ -202,177 +201,31 @@ class NoSignalServer(uvicorn.Server):
         pass
 
 
-# ---------------------------------------------------------------------------
-# Prometheus bridge auto-mount
-# ---------------------------------------------------------------------------
-
-def _get_prometheus_bridges(gateway_instance: object | None) -> list[object]:
+def _bind_extra_socket(host: str, port: int) -> socket.socket:
     """
-    Shared duck-typed lookup for every configured prometheus_out transport
-    on gateway_instance, mirroring
-    services.bridge_service.get_prometheus_bridge(). Used by both
-    _mount_prometheus_bridges() (below) and _collect_metrics_ports() /
-    start_webserver() so all three agree on what counts as "a Prometheus
-    bridge" without a hard import of prometheus_out at module load time.
+    Bind (but don't listen() on) an extra TCP socket for `uvicorn.Server.
+    serve(sockets=...)` to pick up, mirroring exactly what `uvicorn.Config.
+    bind_socket()` does for the primary socket (SO_REUSEADDR, then
+    `sock.set_inheritable(True)`) -- with one deliberate difference: this
+    raises `OSError` on a failed bind instead of swallowing it.
+
+    `uvicorn.Config.bind_socket()` catches its own bind failure internally
+    and calls `sys.exit(3)` -- correct for uvicorn's own CLI, where dying
+    on a bad `--port` is the right behavior, but wrong here: this is a
+    *second*, optional socket, and start_webserver()'s caller wants to
+    catch a failure here and carry on with the main socket alone (see the
+    call site's own comment for why). `sys.exit()` raises `SystemExit`,
+    not `OSError` -- a bare `except OSError` around `bind_socket()` can
+    never actually catch it, so that failure would propagate all the way
+    up and kill the whole process instead of just skipping this one extra
+    port. This function exists so that this specific caller can recover
+    the way it's already written to expect.
     """
-    if gateway_instance is None:
-        return []
-    transports: list[object] = getattr(gateway_instance, "_Protocol_Gateway__transports", [])
-    return [t for t in transports if type(t).__name__ == "prometheus_out"]
-
-
-def _collect_metrics_ports(gateway_instance: object | None) -> dict[int, list[str]]:
-    """
-    Groups configured prometheus_out bridges by their optional
-    `metrics_port`, returning {port: [metrics_path, ...]}.
-
-    A bridge that leaves `metrics_port` unset (the default) is omitted
-    here entirely -- it's reachable only on the main WebServer port via
-    _mount_prometheus_bridges(), same as always. `metrics_port` doesn't
-    start a second server: it's an additional listening socket on the
-    SAME uvicorn.Server / event loop / app object (see start_webserver()),
-    restricted at the ASGI layer (RestrictPortMiddleware, below) to only
-    ever serve that bridge's metrics_path -- not the rest of the web UI --
-    so it's safe to expose to a separate network segment than the config
-    UI itself.
-    """
-    ports: dict[int, list[str]] = {}
-    for bridge in _get_prometheus_bridges(gateway_instance):
-        port: int | None = getattr(bridge, "metrics_port", None)
-        if port is None:
-            continue
-        path: str = getattr(bridge, "metrics_path", "/metrics")
-        ports.setdefault(int(port), []).append(path)
-    return ports
-
-
-class RestrictPortMiddleware:
-    """
-    ASGI middleware: when a request arrives on `restricted_port`, only
-    paths starting with one of `allowed_prefixes` are served -- everything
-    else gets a 404. Requests arriving on any other port are untouched.
-
-    This is what makes a Prometheus bridge's optional `metrics_port` a
-    genuine network-segmentation boundary rather than just an alias for
-    the same web UI on a second socket: even if the metrics port is
-    reachable from somewhere the config UI shouldn't be, only
-    metrics_path is actually servable from there. There's still exactly
-    one FastAPI app, one uvicorn.Server, one event loop, one thread --
-    this middleware runs inside that same single request-handling path.
-    """
-
-    def __init__(self, app: ASGIApp, restricted_port: int, allowed_prefixes: tuple[str, ...]) -> None:
-        self.app: ASGIApp = app
-        self.restricted_port: int = restricted_port
-        self.allowed_prefixes: tuple[str, ...] = allowed_prefixes
-
-    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] == "http":
-            server: tuple[str, int] | None = scope.get("server")
-            incoming_port: int | None = server[1] if server else None
-            if incoming_port == self.restricted_port:
-                path: str = scope.get("path", "")
-                if not path.startswith(self.allowed_prefixes):
-                    await PlainTextResponse("Not Found", status_code=404)(scope, receive, send)
-                    return
-        await self.app(scope, receive, send)
-
-
-def _mount_prometheus_bridges(app: FastAPI, gateway_instance: object | None) -> None:
-    """
-    Mount every configured prometheus_out bridge's /metrics endpoint onto
-    this WebServer's own FastAPI app (the same process already serving the
-    web UI on _current_port, e.g. 1717). There is no other way to serve
-    a prometheus_out bridge -- it has no standalone-server mode of its
-    own, since MPG always runs this WebServer (protocol_gateway.main()
-    calls start_webserver() unconditionally, with no headless code path).
-    A bridge's optional `metrics_port` (see _collect_metrics_ports() and
-    start_webserver()) adds an extra restricted listening socket for this
-    same mount -- it doesn't change how the mount itself is created here.
-
-    This is exactly the wiring prometheus_out.attach_metrics_route()'s own
-    docstring describes as the intended "clean setup" call from main.py --
-    it was just never actually called anywhere before, so a configured
-    bridge served nothing at all.
-
-    Does NOT update the "Configured Devices" dashboard's Host column --
-    that reads literal Setting DB rows sourced from config.cfg text (see
-    device_service.get_nav_data()), not this live transport object. See
-    transport_defaults.json's prometheus_out entry for the actual fix.
-
-    Caveat: this runs once, at process startup, mounting whatever bridge
-    object(s) exist on gateway_instance at that moment. A live config
-    reload (gateway_manager.reload(), see _on_config_changed below) builds
-    a brand-new Protocol_Gateway with brand-new transport objects, but does
-    NOT re-run this function -- the mounted route would keep serving the
-    original (now-orphaned) bridge object's registry. This mirrors an
-    existing limitation elsewhere in this codebase (see the MQTT bridge's
-    write-topic "Startup Requirement" docs): adding, removing, or changing
-    the metrics_path/metrics_port of a Prometheus bridge requires a full
-    process restart to take effect, not just a config commit.
-    """
-    prometheus_bridges: List[object] = _get_prometheus_bridges(gateway_instance)
-    if not prometheus_bridges:
-        return
-
-    try:
-        from classes.transports.prometheus_out import attach_metrics_route
-        from classes.transports.prometheus_out import prometheus_out as _PrometheusOut
-    except ImportError as exc:
-        _log.error(
-            "Found a configured prometheus_out bridge but prometheus_client "
-            "is not installed (%s). Install it with `pip install "
-            "prometheus_client` or add it to requirements.txt.",
-            exc,
-        )
-        return
-
-    mounted_paths: set[str] = set()
-    for raw_bridge in prometheus_bridges:
-        # raw_bridge is `object` here on purpose -- _get_prometheus_bridges()
-        # duck-types on the class name so this module never needs a hard
-        # import of prometheus_out at module load time. We've already
-        # confirmed type(raw_bridge).__name__ == "prometheus_out" there, so
-        # this cast is just telling the type checker what we already know
-        # at runtime; it has no runtime effect of its own, and lets typed
-        # attribute access below (bridge.metrics_port, etc.) type-check
-        # normally instead of needing getattr() everywhere.
-        bridge: _PrometheusOut = cast(_PrometheusOut, raw_bridge)
-        name: str = getattr(bridge, "transport_name", "?")
-        mount_path: str = getattr(bridge, "metrics_path", "/metrics")
-
-        if mount_path in mounted_paths:
-            _log.error(
-                "Prometheus bridge '%s' wants metrics_path '%s', which "
-                "another Prometheus bridge on this gateway already "
-                "mounted. Give each bridge a distinct metrics_path in "
-                "config.cfg -- skipping this one.",
-                name, mount_path,
-            )
-            continue
-
-        try:
-            attach_metrics_route(app, bridge, mount_path)
-        except Exception as exc:
-            _log.error("Failed to mount Prometheus bridge '%s' at '%s': %s", name, mount_path, exc)
-            continue
-
-        mounted_paths.add(mount_path)
-        extra_port: int | None = cast("int | None", bridge.metrics_port)
-        reachable_port: int = extra_port if extra_port is not None else _current_port
-
-        if extra_port is None:
-            _log.info(
-                "Prometheus bridge '%s' mounted at %s on the web UI app "
-                "(0.0.0.0:%s) -- no separate port required.",
-                name, mount_path, reachable_port,
-            )
-        else:
-            _log.info(
-                "Prometheus bridge '%s' mounted at %s on the web UI app, "
-                "also reachable (restricted to %s only) on 0.0.0.0:%s.",
-                name, mount_path, mount_path, reachable_port,
-            )
+    sock: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    sock.bind((host, port))
+    sock.set_inheritable(True)
+    return sock
 
 
 # ---------------------------------------------------------------------------
@@ -380,8 +233,8 @@ def _mount_prometheus_bridges(app: FastAPI, gateway_instance: object | None) -> 
 # ---------------------------------------------------------------------------
 
 def create_app(
-    config_path: Path,
     config_dir: Path,
+    config_path: Path,
     db_dir: Path,
     gateway_instance: object,
     gateway_manager: GatewayManagerLike,
@@ -471,9 +324,10 @@ def create_app(
                 _log.info("Setting descriptions: %d rows seeded/updated", n)
 
         # Mount any configured Prometheus bridge's /metrics onto this same
-        # app/port. See _mount_prometheus_bridges() docstring for the one
-        # caveat (a live config reload doesn't re-run this).
-        _mount_prometheus_bridges(app, gateway_instance)
+        # app/port. See routers.bridges.mount_prometheus_bridges()
+        # docstring for the one caveat (a live config reload doesn't
+        # re-run this).
+        mount_prometheus_bridges(app, gateway_instance, _current_port)
 
         # In-memory staging for the Timescale DB "Delete Columns" screen —
         # see services/bridge_service.py. Lives alongside the gateway
@@ -517,19 +371,6 @@ def create_app(
         version="1.0.0",
         lifespan=lifespan,
     )
-
-    # Restrict any Prometheus bridge's optional dedicated metrics_port (see
-    # _collect_metrics_ports()) to serving only that bridge's metrics_path --
-    # not the rest of this UI -- before this app receives its first ASGI
-    # call. Must happen here, not inside lifespan startup: Starlette builds
-    # (and freezes) its middleware stack on the very first __call__, which
-    # happens before the lifespan "startup" event fires.
-    for extra_port, allowed_paths in _collect_metrics_ports(gateway_instance).items():
-        app.add_middleware(
-            RestrictPortMiddleware,
-            restricted_port=extra_port,
-            allowed_prefixes=tuple(allowed_paths),
-        )
 
     # Static files
     if _STATIC_DIR.exists():
@@ -685,12 +526,14 @@ def start_webserver(
     if not protocols_dir.exists():
         _log.warning(f"Protocols directory missing at {protocols_dir}")
 
-    _log.info(f"WebServer config_path  : {config_path}")
     _log.info(f"WebServer project_root : {project_root}")
+    _log.info(f"WebServer config_path  : {config_path}")
+    _log.info(f"WebServer protocols_dir : {protocols_dir}")
+    _log.info(f"WebServer db_dir : {db_dir}")
 
     app: FastAPI = create_app(
-        config_path=config_path,
         config_dir=config_dir,
+        config_path=config_path,
         db_dir=db_dir,
         gateway_instance=gateway_instance,
         gateway_manager=gateway_manager,
@@ -709,16 +552,25 @@ def start_webserver(
     server: NoSignalServer = NoSignalServer(uv_config)
 
     # One Server, one event loop, one thread -- but possibly more than one
-    # listening socket. Each configured Prometheus bridge's optional
-    # metrics_port (see _collect_metrics_ports()) gets its own bound socket
-    # here, restricted at the ASGI layer by RestrictPortMiddleware (added in
-    # create_app(), above) to serve only that bridge's metrics_path. This is
-    # NOT a second web server: uvicorn.Server.serve() natively accepts a
-    # list of sockets and multiplexes them all through the same app/loop.
+    # listening socket. Each configured Prometheus bridge's dedicated
+    # metrics_port (see routers.bridges.collect_prometheus_metrics_ports())
+    # gets its own bound socket here, serving the exact same app as the
+    # main port (no access restriction -- see
+    # classes.transports.prometheus_out's module docstring). This is NOT a
+    # second web server: uvicorn.Server.serve() natively accepts a list of
+    # sockets and multiplexes them all through the same app/loop.
     sockets: list[socket.socket] = [uv_config.bind_socket()]
-    for extra_port in _collect_metrics_ports(gateway_instance):
+    for extra_port in collect_prometheus_metrics_ports(gateway_instance):
+        if extra_port == port:
+            # Already covered by the main socket above -- see
+            # prometheus_out.mount_bridges()'s matching check, which logs
+            # this as informational rather than as an error. Skipping the
+            # bind attempt entirely (rather than trying it and catching
+            # the inevitable "Address already in use") avoids a confusing
+            # ERROR-level log for a configuration that is, in fact, fine.
+            continue
         try:
-            sockets.append(uvicorn.Config(app, host="0.0.0.0", port=extra_port).bind_socket())  # noqa: S104
+            sockets.append(_bind_extra_socket("0.0.0.0", extra_port))  # noqa: S104
         except OSError as exc:
             _log.error(
                 f"Could not bind Prometheus metrics_port {extra_port} ({exc}); "
