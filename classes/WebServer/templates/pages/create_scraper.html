@@ -1,6 +1,6 @@
 <!--
-  Description: Defines the create_device web UI template for the MultiProtocolGateway admin interface.
-  File: create_device.html
+  Description: Defines the create_scraper web UI template for the MultiProtocolGateway admin interface.
+  File: create_scraper.html
 
   Copyright 2026 Kevin Burke
 
@@ -18,13 +18,13 @@
 -->
 
 {% extends "base.html" %}
-{% block title %}Create Device - MPG Admin{% endblock %}
+{% block title %}Create Scraper - MPG Admin{% endblock %}
 
 {% block content %}
 <div class="max-w-5xl mx-auto px-4 py-6">
   <div class="flex flex-wrap items-start justify-between gap-3 mb-4">
     <div>
-      <h1 class="surface-text font-bold text-xl">Create Device</h1>
+      <h1 class="surface-text font-bold text-xl">Create Scraper</h1>
       <p class="surface-muted text-sm mt-1">
         Build one new scraper section and write it directly to <span class="font-mono">config.cfg</span>.
       </p>
@@ -106,7 +106,7 @@
   <div id="settings-shell" class="card mt-5 hidden">
     <div class="flex items-center justify-between gap-3 mb-3">
       <div>
-        <h2 class="surface-text font-semibold text-sm">Device Settings</h2>
+        <h2 class="surface-text font-semibold text-sm">Scraper Settings</h2>
         <p class="surface-muted text-xs mt-1">Checked rows are saved. Defaults are shown in the right column.</p>
       </div>
     </div>
@@ -121,7 +121,7 @@
     <div id="settings-editor" class="space-y-3 mt-3"></div>
   </div>
 
-  <div id="create-device-result" class="mt-4" aria-live="polite"></div>
+  <div id="create-scraper-result" class="mt-4" aria-live="polite"></div>
 </div>
 {% endblock %}
 
@@ -151,7 +151,7 @@ const protoGroups = JSON.parse('{{ proto_groups | tojson | safe }}');
   const logLevelSelect = document.getElementById('log-level-select');
   const saveBtn = document.getElementById('save-device-btn');
   const cancelBtn = document.getElementById('cancel-device-btn');
-  const resultBox = document.getElementById('create-device-result');
+  const resultBox = document.getElementById('create-scraper-result');
   const settingsShell = document.getElementById('settings-shell');
   const settingsEditor = document.getElementById('settings-editor');
 

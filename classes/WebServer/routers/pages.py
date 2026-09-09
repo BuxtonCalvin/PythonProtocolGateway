@@ -750,25 +750,14 @@ def export_registers_json(
 # ---------------------------------------------------------------------------
 
 @router.get("/api/log", response_class=PlainTextResponse)
-async def read_log(request: Request, lines: int = 250):
+async def read_log(request: Request, lines: int = 250) -> PlainTextResponse:
     # defaults to 250 lines. The UI allows up to 1000, but we set a reasonable default to prevent
     # accidentally trying to read a huge log file when just opening the page. The endpoint can still be used to read more
     # lines if needed.
 
-    # Get strings from state
-    log_file: str = request.app.state.log_file
-    log_dir: str = request.app.state.log_dir
-    project_root: Path = request.app.state.project_root
+    log_path: Path = request.app.state.log_path
 
-    # Path discovery (Check parent and current root)
-    log_path: Path | None = None
-    for base in [project_root.parent, project_root]:
-        candidate: Path = base / log_dir / log_file
-        if candidate.exists():
-            log_path = candidate
-            break
-
-    if log_path is None:
+    if not log_path.exists():
         return PlainTextResponse("Log file not found.", status_code=404)
 
     # Efficient Tail

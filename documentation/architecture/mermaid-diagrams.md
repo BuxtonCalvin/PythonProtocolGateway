@@ -483,7 +483,7 @@ journey
     section Initial Setup
       Open Web UI at localhost:1717: 5: Administrator
       View Dashboard scrapers and bridges: 4: Administrator
-      Create Device via wizard: 4: Administrator
+      Create Scraper via wizard: 4: Administrator
       Configure host port serial protocol_version: 3: Administrator
       Link scraper to bridge transport: 4: Administrator
     section Protocol Tuning
@@ -1110,11 +1110,11 @@ mindmap
 
 ## 17. Flowchart — Device Creation Wizard
 
-The Web UI's "Create Device" page is a linear, gated wizard (each step unlocks the next). Notably, saving a new device writes **directly to `config.cfg`** — it does not go through the normal `Setting.is_dirty` staging flow used for editing existing devices (see diagram 7).
+The Web UI's "Create Scraper" page is a linear, gated wizard (each step unlocks the next). Notably, saving a new device writes **directly to `config.cfg`** — it does not go through the normal `Setting.is_dirty` staging flow used for editing existing devices (see diagram 7).
 
 ```mermaid
 flowchart TD
-    A(["Admin opens Create Device page"]) --> B["Step 1: Enter device name<br/>validated: letters/digits/underscore only"]
+    A(["Admin opens Create Scraper page"]) --> B["Step 1: Enter device name<br/>validated: letters/digits/underscore only"]
     B --> C{"Name valid &<br/>section doesn't<br/>already exist?"}
     C -- "No" --> B
     C -- "Yes" --> D["Step 2: Choose scraper transport type<br/>(modbus_rtu, modbus_tcp, canbus, ...)<br/>from the transport library"]
@@ -1152,7 +1152,7 @@ flowchart TD
 ## Related Documentation
 
 - [README](../../README.md) — project overview and quick start
-- [Analyze Guide](../usage/Analyze.md) — beginner-friendly walkthrough of Create Protocol, Create Device, and Analyze
+- [Analyze Guide](../usage/Analyze.md) — beginner-friendly walkthrough of Create Protocol, Create Scraper, and Analyze
 - [Transports](../usage/transports.md) — scraper and bridge configuration
 - [Protocols](../usage/protocols.md) — register map editing
 - [TimescaleDB Bridge](../bridges/TimeScaleDB/timescaledb.md) — telemetry schema and queries

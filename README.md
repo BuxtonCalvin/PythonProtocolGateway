@@ -120,13 +120,13 @@ A file watcher also monitors `config.cfg` and the `protocols/` directory for cha
 
 See the [Staging / Commit Workflow diagram](documentation/architecture/mermaid-diagrams.md#7-state-diagram--staging--commit-workflow-web-ui) for the full state machine, including the rollback and file-watcher-resync paths.
 
-### Create Device
+### Create Scraper
 
-The create device wizard walks you through creating a scraper device from scratch.
+The Create Scraper wizard walks you through creating a scraper device from scratch.
 
-[![Create Device](classes/WebServer/static/screenshots/create_device.png)](classes/WebServer/static/screenshots/create_device.png)
+[![Create Scraper](classes/WebServer/static/screenshots/create_scraper.png)](classes/WebServer/static/screenshots/create_scraper.png)
 
-New to MPG? [**Analyze.md**](documentation/usage/Analyze.md) is a beginner-friendly, start-to-finish walkthrough of Create Protocol → Create Device → Analyze, written for readers with no prior MPG experience. For the technical step-by-step of what happens under the hood when you save a new device (including the config.cfg write and the reload-on-restart behavior), see the [Device Creation Wizard diagram](documentation/architecture/mermaid-diagrams.md#17-flowchart--device-creation-wizard).
+New to MPG? [**Analyze.md**](documentation/usage/Analyze.md) is a beginner-friendly, start-to-finish walkthrough of Create Protocol → Create Scraper → Analyze, written for readers with no prior MPG experience. For the technical step-by-step of what happens under the hood when you save a new device (including the config.cfg write and the reload-on-restart behavior), see the [Device Creation Wizard diagram](documentation/architecture/mermaid-diagrams.md#17-flowchart--device-creation-wizard).
 
 ### Protocol Editor
 
@@ -150,7 +150,7 @@ All edits go through a structured diff engine — the UI shows exactly which row
 
 The create protocol wizard walks you through creating a hardware protocol from scratch.
 
-[![Create Device](classes/WebServer/static/screenshots/create_protocol.png)](classes/WebServer/static/screenshots/create_protocol.png)
+[![Create Scraper](classes/WebServer/static/screenshots/create_protocol.png)](classes/WebServer/static/screenshots/create_protocol.png)
 
 This is typically the first step for undocumented hardware — see [Analyze.md](documentation/usage/Analyze.md) for the full walkthrough, and the [Protocol Map Directory Structure diagram](documentation/architecture/mermaid-diagrams.md#16-mindmap--protocol-map-directory-structure) for how the resulting JSON descriptor and register-map CSVs are laid out on disk.
 
@@ -277,7 +277,7 @@ MPG also supports any generic Modbus RTU or TCP device when given a register map
 
 ## Community Help Wanted: Stub Protocols
 
-Beyond the 29 manufacturers above, MPG has device metadata already stubbed in for **74 more manufacturers** — a JSON descriptor with the transport type and default settings, but no register map yet. These exist because someone requested or started the device but a full map hasn't been built. If you own one of these and can run the [Live Analysis tool](#live-device-analysis) against it, you can generate and commit a working register map directly from the web UI — no CSV editing required, and no need to already know the register layout. New to MPG? [**Analyze.md**](documentation/usage/Analyze.md) walks through this exact scenario (Create Protocol → Create Device → Analyze) start to finish for readers with no prior experience.
+Beyond the 29 manufacturers above, MPG has device metadata already stubbed in for **74 more manufacturers** — a JSON descriptor with the transport type and default settings, but no register map yet. These exist because someone requested or started the device but a full map hasn't been built. If you own one of these and can run the [Live Analysis tool](#live-device-analysis) against it, you can generate and commit a working register map directly from the web UI — no CSV editing required, and no need to already know the register layout. New to MPG? [**Analyze.md**](documentation/usage/Analyze.md) walks through this exact scenario (Create Protocol → Create Scraper → Analyze) start to finish for readers with no prior experience.
 
 A few of these already have a wiring/protocol reference guide to jump-start the work, even though the register map itself is still pending: **[Kostal](documentation/devices/Kostal.md)**, **[KSTAR](documentation/devices/KSTAR.md)**, and **[Sofar](documentation/devices/Sofar.md)**.
 

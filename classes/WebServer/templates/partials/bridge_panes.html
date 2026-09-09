@@ -404,6 +404,10 @@
         if (active) {
           select.classList.remove('text-mpg-200', 'opacity-70');
           select.classList.add('text-mpg-100');
+
+          if (resp.value_staged !== undefined) {
+            select.value = (resp.value_staged || '').toLowerCase().trim() === 'true' ? 'true' : 'false';
+          }
         } else {
           select.classList.remove('text-mpg-100');
           select.classList.add('text-mpg-200', 'opacity-70');
@@ -417,6 +421,10 @@
         if (active) {
           textInput.classList.remove('text-mpg-200', 'opacity-70');
           textInput.classList.add('text-mpg-100');
+
+          if (resp.value_staged !== undefined) {
+            textInput.value = resp.value_staged || '';
+          }
         } else {
           textInput.classList.remove('text-mpg-100');
           textInput.classList.add('text-mpg-200', 'opacity-70');

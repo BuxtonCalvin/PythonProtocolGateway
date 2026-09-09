@@ -256,6 +256,8 @@ def update_general_setting(section: str, setting_id: int, payload: SettingUpdate
         row.value_staged = payload.value_staged
     if payload.is_active is not None:
         row.is_active = payload.is_active
+        if row.is_active and not row.value_staged:
+            row.value_staged = row.default_value or ""
 
     row.mark_dirty()
     db.flush()
@@ -414,6 +416,8 @@ def create_and_activate(
     if existing:
         existing.is_active = True
         existing.is_dirty = True
+        if not existing.value_staged:
+            existing.value_staged = payload.default_value or existing.default_value or ""
         row: Setting = existing
     else:
         row = Setting(
@@ -541,6 +545,8 @@ def update_setting(device_name: str, setting_id: int, payload: SettingUpdate, re
         row.value_staged = payload.value_staged
     if payload.is_active is not None:
         row.is_active = payload.is_active
+        if row.is_active and not row.value_staged:
+            row.value_staged = row.default_value or ""
 
     # Compute dirty correctly:
     # - Active row: dirty if staged value differs from what's on disk

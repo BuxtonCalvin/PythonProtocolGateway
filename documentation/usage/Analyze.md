@@ -1,4 +1,4 @@
-# Finding Out What's On Your Hardware: Create Protocol, Create Device, and Analyze
+# Finding Out What's On Your Hardware: Create Protocol, Create Scraper, and Analyze
 
 This guide is for anyone who wants to connect a new piece of hardware to MPG
 (Multi-Protocol Gateway) when there isn't already a ready-made setup for it.
@@ -38,7 +38,7 @@ this:
    to call it." This creates an empty placeholder register map you'll fill
    in later. (Skip this step if you're using a protocol MPG already ships
    with.)
-2. **Create Device** — Tell MPG how to physically talk to your hardware
+2. **Create Scraper** — Tell MPG how to physically talk to your hardware
    (what port, what address, which protocol to use) and restart MPG so the
    connection goes live.
 3. **Analyze** — Point MPG at the now-connected device and let it scan the
@@ -77,12 +77,12 @@ be filled in. Nothing has been read from any hardware yet.
 
 ---
 
-## 4. Create Device — Connecting to the Hardware
+## 4. Create Scraper — Connecting to the Hardware
 
 This step tells MPG about one specific, physical device: where it is and
 how to reach it.
 
-1. Open the **Create Device** page from the MPG menu.
+1. Open the **Create Scraper** page from the MPG menu.
 2. **Name your device** — letters, numbers, and underscores only.
 3. **Choose a transport type** — this is *how* MPG will physically connect:
    over a network cable (TCP), a USB/serial cable (RTU), etc. Pick whatever
@@ -125,7 +125,7 @@ to guess register numbers by hand or rely on a datasheet.
 1. Go to your device's page and select it from the device drop-down.
 2. If MPG can talk to the device (it's a live, connected scraper), an
    **Analyze** button will appear. If you don't see it, double check you
-   restarted MPG after Create Device (previous section) — the button won't
+   restarted MPG after Create Scraper (previous section) — the button won't
    show up until the device is actually running.
 
 ### Running a Scan
@@ -285,7 +285,7 @@ like for a totally undocumented device:
 
 1. **Create Protocol** → name it `mydevice_v1`, register type `Holding`,
    leave the row list empty.
-2. **Create Device** → name it `mydevice`, pick the matching transport
+2. **Create Scraper** → name it `mydevice`, pick the matching transport
    type and connection settings, protocol `mydevice_v1`, check whichever
    Send boxes seem plausible (a guess is fine).
 3. **Restart MPG.**
@@ -315,7 +315,7 @@ other connection types like CAN bus.
 **Every category came back skipped — nothing was found at all.**
 This usually points to a connection problem rather than a hardware
 limitation — double-check the IP address/port or serial port and baud
-rate you entered in Create Device, and confirm the device is powered on
+rate you entered in Create Scraper, and confirm the device is powered on
 and wired correctly. If you're on a shared serial bus with other devices,
 also confirm the device's address (slave ID) is correct.
 

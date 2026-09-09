@@ -398,9 +398,16 @@ class Protocol_Gateway:
     """
     _logging_initialized = False
     _messaging_initialized: bool = False
+    # Set once, the first time _setup_logging() actually runs -- the single
+    # resolved, absolute path of the log file it configured. main() reads
+    # this back (via the Protocol_Gateway instance's own .log_path, set
+    # from this in __init__) instead of independently re-parsing
+    # [logging].log_dir/log_file from config.cfg a second time, which
+    # previously risked disagreeing with this method's own resolution.
+    _log_path: Path | None = None
 
     @classmethod
-    def _setup_logging(cls, cfg: ConfigParser) -> None:
+    def _setup_logging(cls, cfg: ConfigParser, base_dir: Path) -> Path:
         """Scheduling path: N/A — setup, runs once regardless of read_mode.
 
         Configure the root logger from the ``[logging]`` section of ``cfg``. Class-level no-op after first call.
@@ -413,9 +420,33 @@ class Protocol_Gateway:
         (``RotatingFileHandler`` with a byte cap).  Any other value falls back to
         a plain ``StreamHandler``.  Optionally adds a second console handler when
         ``[logging].console = true``.
+
+        ``base_dir`` — the directory containing protocol_gateway.py (what
+        ``__init__`` already computes as its own ``base_dir``), used to
+        resolve a relative ``log_dir`` deterministically instead of against
+        the process's current working directory (which varies by how MPG
+        is launched -- CLI from an arbitrary shell location, Docker with
+        its own WORKDIR, a systemd unit with its own WorkingDirectory --
+        and previously made the actual on-disk log location unpredictable).
+
+        A relative ``log_dir`` (the default, "logs") is resolved as a
+        *sister* folder to the project root -- ``base_dir.parent /
+        log_dir`` -- not a child of it: this keeps logs out of both the
+        application folder and the git repository by default, for both the
+        CLI and Docker entry points. An absolute ``log_dir`` in config.cfg
+        is honored exactly as given, opting fully out of this.
+
+        Returns the resolved, absolute Path of the log file. Idempotent per
+        ``_logging_initialized`` — a second call returns the same Path
+        without redoing any setup, so callers never need to guess or
+        re-derive it themselves from a second, independent config read.
         """
         if cls._logging_initialized:
-            return
+            assert cls._log_path is not None, (
+                "_logging_initialized is True but _log_path was never set -- "
+                "this should be unreachable."
+            )
+            return cls._log_path
 
         # Read logging config
         # Single source of truth for runtime logger threshold:
@@ -426,7 +457,13 @@ class Protocol_Gateway:
         ).strip().upper()
         level: int = getattr(logging, level_name, logging.INFO)
 
-        log_dir = Path(cfg.get("logging", "log_dir", fallback="logs"))
+        log_dir_cfg: str = cfg.get("logging", "log_dir", fallback="logs")
+        log_dir: Path = Path(log_dir_cfg)
+        if not log_dir.is_absolute():
+            # Sister folder to the project root, not a child of it -- see
+            # docstring above. base_dir.parent is the folder containing
+            # MultiProtocolGateway itself.
+            log_dir = base_dir.parent / log_dir
         log_file: str = cfg.get("logging", "log_file", fallback="MPG.log")
 
         rotation: str = cfg.get("logging", "rotation", fallback="weekly").lower()
@@ -438,6 +475,7 @@ class Protocol_Gateway:
 
         log_dir.mkdir(parents=True, exist_ok=True)
         log_path: Path = log_dir / log_file
+
 
         # ---- Choose handler ----
         # Declared once as the common base class: the branches below assign
@@ -498,6 +536,8 @@ class Protocol_Gateway:
             root.addHandler(console)
 
         cls._logging_initialized = True
+        cls._log_path = log_path
+        return log_path
 
     @classmethod
     def _setup_messaging(cls, cfg: ConfigParser) -> None:
@@ -651,7 +691,10 @@ class Protocol_Gateway:
         self.__settings = CustomConfigParser()
         self.__settings.read(self.config_file.as_posix())
 
-        self._setup_logging(self.__settings)
+        # The single resolved, absolute log file Path -- main() hands this
+        # straight to start_webserver() instead of independently re-parsing
+        # [logging].log_dir/log_file from config.cfg a second time.
+        self.log_path: Path = self._setup_logging(self.__settings, base_dir)
         self._setup_messaging(self.__settings)
 
 
@@ -2155,10 +2198,11 @@ def main(args: list[str] | None = None) -> None:
     Accepts ``--config``/``-c <file>`` or a bare positional argument to name the
     config file; defaults to ``config.cfg``.  Resolves the path by walking up
     from ``__file__`` to find the project root (the directory containing
-    ``protocol_gateway.py``), then reads ``[logging].log_file`` and
-    ``[logging].log_dir`` to pass to ``start_webserver``.  The web server is
-    started before ``mpg.run()`` so the HTTP interface is available immediately,
-    even during the initial transport connection phase.
+    ``protocol_gateway.py``), then passes the running ``Protocol_Gateway``
+    instance's already-resolved ``log_path`` (set once by
+    ``Protocol_Gateway._setup_logging()``) straight to ``start_webserver``.
+    The web server is started before ``mpg.run()`` so the HTTP interface is
+    available immediately, even during the initial transport connection phase.
     """
     # Create ArgumentParser object
     parser = argparse.ArgumentParser(description="Multi Protocol Gateway")
@@ -2188,15 +2232,17 @@ def main(args: list[str] | None = None) -> None:
             break
 
     config_path: Path = root / "config" / config_file
-    config_parser = CustomConfigParser()
-    config_parser.read(config_path.as_posix())
-    log_file: str = config_parser.get("logging", "log_file", fallback="MPG.log")
-    log_dir: str = config_parser.get("logging", "log_dir", fallback="logs")
 
     manager = GatewayManager(config_file, config_path)
     mpg: Protocol_Gateway = manager.start()
 
-    start_webserver(config_path, log_file, log_dir, gateway_instance=mpg, gateway_manager=manager)
+    # mpg.log_path is the single, already-resolved absolute log file path
+    # that Protocol_Gateway._setup_logging() actually configured the root
+    # logger with -- reusing it here (rather than independently re-parsing
+    # [logging].log_dir/log_file from a second CustomConfigParser) means
+    # the WebServer's log-file-path handling (see routers/pages.py's
+    # read_log()) can never disagree with where logging is truly writing.
+    start_webserver(config_path, mpg.log_path, gateway_instance=mpg, gateway_manager=manager)
 
     # run() executes on its own thread (started inside manager.start()),
     # not this one — that's what lets a reload triggered from the webUI

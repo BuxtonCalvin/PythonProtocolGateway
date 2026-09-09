@@ -228,7 +228,7 @@ class DeviceInfo(Base):
     device_firmware: Mapped[Optional[str]] = mapped_column(Text)
     device_location: Mapped[Optional[str]] = mapped_column(Text)
     transport: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
-    # Actual scraped metric count for THIS device (post variable_mask
+    # Actual scraped metric count for this device (post variable_mask
     # filtering), captured once at _get_or_create_device's first upsert
     # for the transport each session -- not protocol_registry.metric_
     # count, which is a schema-wide (wide table column count) figure that
