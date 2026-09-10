@@ -138,13 +138,13 @@ if TYPE_CHECKING:
 
     from protocol_gateway import Protocol_Gateway
 
-    from ..models import Setting
     from ...transports.timescaledb import (
         BridgeAdminManager,
         WideTableField,
         WideTableFieldDeletionResult,
         timescaledb,
     )
+    from ..models import Setting
 
 # A great many functions below deliberately keep `Any` for values that
 # originate from calling a method on an mqtt/influxdb/prometheus bridge
@@ -1276,9 +1276,13 @@ def delete_bridge(db: "Session", bridge_name: str) -> BridgeDeletionResult:
         db.query(Setting).filter(Setting.section == section).all()
     )
     if not rows:
-        raise ValueError(f"No bridge section '{section}' exists.")
+        msg: str = f"No bridge section '{section}' exists."
+        _log.warning("delete_bridge: %s", msg)
+        raise ValueError(msg)
     if rows[0].transport_type != "bridge":
-        raise ValueError(f"Section '{section}' is not a bridge.")
+        msg: str = f"Section '{section}' is not a bridge."
+        _log.warning("delete_bridge: %s", msg)
+        raise ValueError(msg)
 
     deleted_keys: int = len(rows)
     for row in rows:
