@@ -2,7 +2,7 @@
 
 **Multi Protocol Gateway (MPG)** reads live data from solar inverters, battery management systems (BMS), energy meters, and other Modbus/CAN-speaking hardware. MPG then fans that data out to your choice of bridges: MQTT, InfluxDB, TimescaleDB, Prometheus, and JSON — all managed through a built-in web UI; no config-file editing required. MPG allows you to read data from concurrent hardware devices and protocols, and then push the data to one, or more software bridges. If you have a device that speaks Modbus RTU/TCP, CAN bus, or one of the supported proprietary serial protocols and you want its data in Home Assistant, Grafana, Prometheus, or a time-series database, this app should work for you.
 
-[![Python 3.10](https://github.com/BuxtonCalvin/MultiProtocolGateway/actions/workflows/python-3.10.yml/badge.svg)](https://github.com/BuxtonCalvin/MultiProtocolGateway/actions/workflows/python-3.10.yml) ➔ [![Python 3.14](https://github.com/BuxtonCalvin/MultiProtocolGateway/actions/workflows/python-3.14.yml/badge.svg)](https://github.com/BuxtonCalvin/MultiProtocolGateway/actions/workflows/python-3.14.yml) [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://github.com/BuxtonCalvin/MultiProtocolGateway/blob/main/LICENSE) [![Ruff](https://img.shields.io/badge/Linter-Ruff-brightgreen?style=flat-square)](https://github.com/charliermarsh/ruff) [![CodeQL Status](https://github.com/BuxtonCalvin/MultiProtocolGateway/actions/workflows/codeql.yml/badge.svg)](https://github.com/BuxtonCalvin/MultiProtocolGateway/actions/workflows/codeql.yml)
+[![Python 3.10](https://github.com/BuxtonCalvin/MultiProtocolGateway/actions/workflows/python-3.10.yml/badge.svg)](https://github.com/BuxtonCalvin/MultiProtocolGateway/actions/workflows/python-3.10.yml) ➔ [![Python 3.14](https://github.com/BuxtonCalvin/MultiProtocolGateway/actions/workflows/python-3.14.yml/badge.svg)](https://github.com/BuxtonCalvin/MultiProtocolGateway/actions/workflows/python-3.14.yml) [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE) [![Ruff](https://img.shields.io/badge/Linter-Ruff-brightgreen?style=flat-square)](https://github.com/charliermarsh/ruff) [![CodeQL Status](https://github.com/BuxtonCalvin/MultiProtocolGateway/actions/workflows/codeql.yml/badge.svg)](https://github.com/BuxtonCalvin/MultiProtocolGateway/actions/workflows/codeql.yml)
 
 [![Dashboard](classes/WebServer/static/screenshots/dashboard.png)](classes/WebServer/static/screenshots/dashboard.png)
 
@@ -150,7 +150,7 @@ All edits go through a structured diff engine — the UI shows exactly which row
 
 The create protocol wizard walks you through creating a hardware protocol from scratch.
 
-[![Create Scraper](classes/WebServer/static/screenshots/create_protocol.png)](classes/WebServer/static/screenshots/create_protocol.png)
+[![Create Protocol](classes/WebServer/static/screenshots/create_protocol.png)](classes/WebServer/static/screenshots/create_protocol.png)
 
 This is typically the first step for undocumented hardware — see [Analyze.md](documentation/usage/Analyze.md) for the full walkthrough, and the [Protocol Map Directory Structure diagram](documentation/architecture/mermaid-diagrams.md#16-mindmap--protocol-map-directory-structure) for how the resulting JSON descriptor and register-map CSVs are laid out on disk.
 

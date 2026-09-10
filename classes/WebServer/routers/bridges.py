@@ -1,4 +1,4 @@
-# Description: routers/bridges.py — Read-only bridge status partials for the Bridges pulldown / device pages.
+# Description: routers/bridges.py — Bridge status partials plus the Delete Bridge action, for the Bridges pulldown / device pages.
 # File: bridges.py
 #
 # Copyright 2026 Kevin Burke
@@ -16,31 +16,43 @@
 # limitations under the License.
 
 """
-routers/bridges.py — Read-only bridge status partials, plus Prometheus's
-app-assembly wiring.
+routers/bridges.py — Bridge status partials, the Delete Bridge action, plus
+Prometheus's app-assembly wiring.
 Registered in main.py via app.include_router(bridges_router).
 
-These back the passive "Bridges" pulldown / device-page panels (see
-partials/bridge_panes.html) — Bridge Health, Storage Overview, Indexes,
-Compression & Retention Status, Background Job Status for TimescaleDB;
-Bridge Health/Storage for InfluxDB v1/v3; Bridge Health for MQTT; Bridge
-Health/Target Health for Prometheus. Every ROUTE in this module is purely
-observational: nothing on these panels is clickable, and nothing here
+Most of this module backs the passive "Bridges" pulldown / device-page
+panels (see partials/bridge_panes.html) — Bridge Health, Storage Overview,
+Indexes, Compression & Retention Status, Background Job Status for
+TimescaleDB; Bridge Health/Storage for InfluxDB v1/v3; Bridge Health for
+MQTT; Bridge Health/Target Health for Prometheus. Those routes are purely
+observational: nothing on those panels is clickable, and nothing there
 mutates bridge state.
 
-The one exception to "purely observational" is a pair of plain functions
-at the bottom of this file -- mount_prometheus_bridges() and
-collect_prometheus_metrics_ports() -- which aren't routes at all. They're
-called directly by classes.WebServer.main during app assembly and server
-startup, not by an HTTP request, and the former does mutate the FastAPI
-app object (app.mount()). They live here rather than in
-services/bridge_service.py because that module's contract is strictly
-"take a gateway, return read-only data for a template" -- no function
-there touches a FastAPI `app` object or runs outside a request. Prometheus
-is the only bridge type that needs this kind of app-assembly wiring at
-all (it's pull-based: it has to actually serve HTTP itself, not just
-report on a connection it owns), so it stays paired with this module's
-other Prometheus-specific code rather than being split across two files.
+Two things below are deliberate exceptions to that "purely observational"
+description:
+
+  - delete_bridge_route() (DELETE /api/bridges/{bridge_name}) — backs the
+    "Delete Bridge" button on bridge_panes.html's Bridge Connection
+    header. This is a real config-shape mutation (removes the bridge's
+    section, and any scraper "bridge" references to it, from the staging
+    DB), so it's kept visually and structurally separate from the
+    read-only panel routes above it — see its own docstring, and
+    services/bridge_service.delete_bridge()'s docstring, for the full
+    picture of what it does and doesn't touch.
+
+  - A pair of plain functions at the bottom of this file --
+    mount_prometheus_bridges() and collect_prometheus_metrics_ports() --
+    which aren't routes at all. They're called directly by
+    classes.WebServer.main during app assembly and server startup, not by
+    an HTTP request, and the former does mutate the FastAPI app object
+    (app.mount()). They live here rather than in services/bridge_service.py
+    because that module's contract is otherwise strictly "take a gateway,
+    return data for a template/response" -- no function there touches a
+    FastAPI `app` object or runs outside a request. Prometheus is the only
+    bridge type that needs this kind of app-assembly wiring at all (it's
+    pull-based: it has to actually serve HTTP itself, not just report on a
+    connection it owns), so it stays paired with this module's other
+    Prometheus-specific code rather than being split across two files.
 
 This is deliberately separate from routers/timescale.py, which owns the
 "Timescale DB" admin menu (Delete Columns / Rebuild Rollups / Rebuild
@@ -62,10 +74,14 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
-from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import HTMLResponse, JSONResponse
+from sqlalchemy.orm import Session
 
+from ..database import get_session, refresh_app_state
 from ..services.bridge_service import (
+    BridgeDeletionResult,
+    delete_bridge,
     get_background_jobs,
     get_compression_retention_summary,
     get_index_overview,
@@ -95,6 +111,60 @@ if TYPE_CHECKING:
 
 router = APIRouter(tags=["bridges"])
 _log: logging.Logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Delete Bridge — bridge_panes.html Bridge Connection header
+# ---------------------------------------------------------------------------
+
+@router.delete("/api/bridges/{bridge_name}")
+def delete_bridge_route(
+    bridge_name: str, db: Session = Depends(get_session)
+) -> JSONResponse:
+    """
+    Deletes a bridge's [transport.<bridge_name>] section from the config,
+    and clears the reference(s) to it out of any scraper's "bridge"
+    setting (the multi-select value naming which bridge(s) that scraper's
+    transport writes its output to).
+
+    All the actual work — finding the section's rows, deleting them, and
+    walking every scraper's "bridge" value to strip the dangling
+    "transport.<bridge_name>" entry — happens in
+    services/bridge_service.delete_bridge(); see that function's docstring
+    for exactly what is and isn't touched (short version: this is a DB
+    edit only, same as every other staged setting change in this app —
+    the actual config.cfg file isn't rewritten until the next "Commit").
+
+    Returns the deletion result as JSON (section name, key count removed,
+    and which scraper sections had their "bridge" reference cleared) —
+    the "Delete Bridge" button (bridge_panes.html) is a plain fetch(),
+    matching the existing orphan-modal delete flow, and navigates itself
+    to "/" on a successful response rather than relying on a redirect
+    header, since the bridge's own device page has nothing left to show
+    once its section is gone.
+
+    404 if no such bridge exists; 400 if the name resolves to a section
+    that isn't a bridge (e.g. a scraper name was passed in by mistake).
+    """
+    try:
+        result: BridgeDeletionResult = delete_bridge(db, bridge_name)
+    except ValueError as exc:
+        message: str = str(exc)
+        status_code: int = 404 if "No bridge section" in message else 400
+        db.rollback()
+        raise HTTPException(status_code=status_code, detail=message)
+
+    db.flush()
+    refresh_app_state(db)
+    db.commit()
+
+    _log.info(
+        "Deleted bridge '%s' via DELETE /api/bridges/%s (scrapers updated: %s)",
+        bridge_name, bridge_name, ", ".join(result["updated_scrapers"]) or "(none)",
+    )
+
+    return JSONResponse(content=dict(result))
+
 
 # A number of endpoints below keep dict[str, Any]/list[dict[str, Any]]
 # return-shaped locals rather than a tightened union. In every one of

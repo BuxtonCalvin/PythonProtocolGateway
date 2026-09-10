@@ -174,9 +174,17 @@
   <section class="flex-1 overflow-y-auto min-w-0 space-y-4"
            aria-label="Connection health for {{ device.name }}">
 
-    <h2 class="surface-title font-semibold text-sm">
-      Bridge Connection
-      <span class="surface-muted font-normal">[{{ device.name }}]</span>
+    <h2 class="surface-title font-semibold text-sm flex items-center justify-between gap-3">
+      <span>
+        Bridge Connection
+        <span class="surface-muted font-normal">[{{ device.name }}]</span>
+      </span>
+      <button type="button"
+              class="btn-danger text-xs"
+              onclick="deleteBridge('{{ device.name }}')"
+              aria-label="Delete bridge {{ device.name }}">
+        Delete Bridge
+      </button>
     </h2>
 
     <!-- Connection status card -->
@@ -442,4 +450,28 @@
       row.classList.remove('bg-dirty/10', 'border-l-2', 'border-dirty');
     }
   });
+
+  // "Delete Bridge" button — Bridge Connection header, right-hand side.
+  // Hard-deletes the bridge's section (and cleans up any scraper "bridge"
+  // references to it) via DELETE /api/bridges/{name} (see routers/bridges.py
+  // + services/bridge_service.delete_bridge()), then leaves the now-gone
+  // bridge's device page for the dashboard, the same way orphan_modal.html's
+  // deleteSelected() confirms + fetches + navigates away on success.
+  function deleteBridge(bridgeName) {
+    if (!confirm(`Delete bridge "${bridgeName}"? This removes it from the config ` +
+                 `and clears it from any scraper's bridge output. This cannot be undone.`)) {
+      return;
+    }
+
+    fetch(`/api/bridges/${encodeURIComponent(bridgeName)}`, { method: 'DELETE' })
+      .then(async (resp) => {
+        if (!resp.ok) {
+          const body = await resp.json().catch(() => ({}));
+          throw new Error(body.detail || `Delete failed (HTTP ${resp.status})`);
+        }
+        // Bridge's own page no longer exists — head back to the dashboard.
+        window.location.href = '/';
+      })
+      .catch((err) => alert('Delete failed: ' + err.message));
+  }
 </script>
