@@ -244,7 +244,10 @@ def get_backups(db: Session = Depends(get_session))-> list[BackupSummary]:
 def discard_changes(request: Request, db: Session = Depends(get_session)) -> dict[str, str]:
     """
     Discard all staged changes: reset value_staged = value_disk and
-    clear all is_dirty flags. Does NOT touch the config file on disk.
+    clear all is_dirty flags — restoring is_active = True first for any
+    row that's currently deactivated but still has a real value on disk
+    (a staged key or bridge-section removal being undone; see the
+    Setting-reset loop below). Does NOT touch the config file on disk.
     Also clears any staged TimescaleDB column deletions — those are
     in-memory only, so nothing on disk or in Postgres needs reverting.
     """
@@ -252,6 +255,24 @@ def discard_changes(request: Request, db: Session = Depends(get_session)) -> dic
     # Reset Setting rows
     dirty_settings: List[Setting] = db.query(Setting).filter(Setting.is_dirty == True).all()  # noqa: E712
     for row in dirty_settings:
+        # Restore is_active before resetting the value, for a row that's
+        # currently deactivated but has a real value on disk. That's a
+        # staged removal — a single key turned off via routers/devices.py's
+        # update_setting()/update_device_setting(), or an entire bridge
+        # section via bridge_service.delete_bridge() — and value_disk
+        # being truthy is exactly this app's signal that the key still
+        # genuinely exists in config.cfg (see Setting's docstring in
+        # models.py). Discarding that staged removal has to bring
+        # is_active back to True, or the key/section stays permanently
+        # excluded from every future commit even though the user asked
+        # to undo the change — is_active was never touched by this loop
+        # before, so this was a real gap for both cases, not something
+        # bridge deletion introduced on its own.
+        # A row with no disk value (a staged-but-never-committed new
+        # key/section, is_active already True) is untouched by this,
+        # exactly as before.
+        if row.value_disk:
+            row.is_active = True
         row.value_staged = row.value_disk
         row.is_dirty = False
 

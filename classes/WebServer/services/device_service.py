@@ -78,11 +78,22 @@ def get_nav_data(db: Session) -> NavData:
     scrapers: list[DeviceSummary] = []
     bridges: list[DeviceSummary] = []
 
-    # Find all transport sections
+    # Find all transport sections that still have at least one active row.
+    # The is_active filter matters for a section every one of whose rows
+    # has been soft-deleted (see bridge_service.delete_bridge(), which
+    # marks a bridge's rows is_active=False rather than removing them, so
+    # the pending removal can still be counted as dirty for the Commit
+    # button) — without it, such a section's row(s) still physically
+    # exist, so it would keep showing up here as a live device even
+    # though it's staged for removal on the next commit. This does NOT
+    # affect sections where only SOME rows are inactive (e.g. Prometheus
+    # bridges' dashboard-only derived host/port rows, is_active=False by
+    # design — see scanner.py's prometheus_out handling) since those
+    # sections still have other active rows and are found here as before.
     sections: Sequence[str] = (
         db.execute(
             select(Setting.section)
-            .where(Setting.section.like("transport.%"))
+            .where(Setting.section.like("transport.%"), Setting.is_active == True)  # noqa: E712
             .distinct()
         )
         .scalars()
@@ -231,6 +242,24 @@ def ensure_bridge_sections_exist(db: Session, bridge_value: str | None) -> list[
 
 def get_device_summary(db: Session, device_name: str) -> DeviceSummary | None:
     section: str = f"transport.{device_name}"
+
+    # Guard the section on "has at least one active row" the same way
+    # get_nav_data() now does, and for the same reason: a soft-deleted
+    # bridge (bridge_service.delete_bridge() — every row is_active=False,
+    # pending removal on next commit) should 404 here just like it's
+    # hidden from nav, even though its rows still physically exist in the
+    # DB. _get_section_keys() below is deliberately left reading every
+    # row regardless of is_active — see its own docstring — so this check
+    # has to happen here rather than by filtering that function.
+    has_active_row: bool = (
+        db.query(Setting.id)
+        .filter(Setting.section == section, Setting.is_active == True)  # noqa: E712
+        .first()
+        is not None
+    )
+    if not has_active_row:
+        return None
+
     keys: dict[str, str] = _get_section_keys(db, section)
     if not keys:
         return None
@@ -246,6 +275,22 @@ def get_device_summary(db: Session, device_name: str) -> DeviceSummary | None:
 
 
 def _get_section_keys(db: Session, section: str) -> dict[str, str]:
+    """
+    Deliberately reads every Setting row for this section regardless of
+    is_active — do not add an is_active filter here. scanner.py's
+    prometheus_out handling relies on this: it stores that bridge's
+    dashboard-only derived host/port as is_active=False rows (they have
+    no config.cfg representation to begin with — see the long comment
+    in scanner.py above that code), and this function is how the
+    dashboard reads them back. Filtering to active-only here would make
+    those two values disappear from the dashboard.
+
+    Callers that need to know whether the SECTION ITSELF still counts as
+    an existing device (as opposed to reading whichever values it has)
+    — get_nav_data() and get_device_summary() — do that check
+    themselves, on "does this section have at least one active row",
+    before calling this function; see their own comments for why.
+    """
     rows: List[Setting] = db.query(Setting).filter(Setting.section == section).all()
     result: dict[str, str] = {}
     for row in rows:
