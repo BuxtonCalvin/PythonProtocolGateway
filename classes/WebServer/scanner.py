@@ -69,13 +69,33 @@ EMPTY_TRANSPORT_ENTRY: TransportLibraryEntry = {"classification": "", "keys": {}
 # ---------------------------------------------------------------------------
 TRANSPORT_BASE_KEYS: dict[str, str] = get_transport_base_keys()
 
-# The WebServer's own default port -- see
-# classes.WebServer.main.start_webserver()'s `port` parameter. Used as the
-# fallback for a prometheus_out section's derived, display-only `port` when
-# that bridge's own metrics_port is unset. There's no config-based way to
-# override the WebServer's actual port today, so this constant and that
-# parameter's default must be kept in sync by hand if that ever changes.
-PROMETHEUS_OUT_DEFAULT_PORT: int = 1717
+# The prometheus_out dashboard host/port-derivation logic (see "Derive
+# host/port for prometheus_out sections" below) now lives in
+# classes.transports.prometheus_out, alongside the bridge settings it
+# derives from. This is a deferred/optional import -- prometheus_client
+# (a dependency of that module) is only required if a prometheus_out
+# bridge is actually configured, and this scanner has to keep working for
+# every OTHER transport type even when it isn't installed. If it can't be
+# imported, fall back to a small dependency-free copy of just the two bits
+# of logic this scanner needs; keep it in sync with
+# classes/transports/prometheus_out.py if either one changes.
+try:
+    from classes.transports.prometheus_out import (
+        DEFAULT_METRICS_PORT,
+        derive_dashboard_host_port,
+    )
+except ImportError:
+    # Pyright treats an ALL-CAPS module-level name as a constant and flags
+    # any second binding of it as reportConstantRedefinition -- even when,
+    # as here, the two bindings are in mutually exclusive try/except
+    # branches and only one of them can ever actually execute. This is a
+    # deliberate fallback definition, not an accidental redefinition.
+    DEFAULT_METRICS_PORT = 9110  # pyright: ignore[reportConstantRedefinition]
+
+    def derive_dashboard_host_port(
+        metrics_port_raw: str, default_port: int = DEFAULT_METRICS_PORT
+    ) -> tuple[str, str]:
+        return "0.0.0.0", (metrics_port_raw.strip() or str(default_port))  # noqa: S104
 
 
 # ---------------------------------------------------------------------------
@@ -1195,7 +1215,40 @@ class Scanner:
                 elif section.lower() == "logging":
                     transport_type = "logging"
 
+                # Literal transport name (e.g. "prometheus_out"), read
+                # directly from this section's own `transport =` config.cfg
+                # line -- NOT the same as transport_type above, which is
+                # only the broad "scraper" | "bridge" | "general" category
+                # (see _classify_transport()'s own docstring). Computed
+                # once here, before the per-key loop below, since both that
+                # loop and "Derive host/port for prometheus_out sections"
+                # further down need it.
+                literal_transport_name: str = keys.get("transport", "").strip()
+
                 for key, value in keys.items():
+                    # host/port under a prometheus_out section are always
+                    # derived from metrics_port (see "Derive host/port for
+                    # prometheus_out sections", right below this loop) --
+                    # never from whatever this section's config.cfg text
+                    # literally says for them. Skipping them here isn't
+                    # just "the derived value wins" (that block's own
+                    # cfg_is_truth=True upsert would already guarantee
+                    # that); it avoids upserting the SAME (section, key)
+                    # twice in one scan pass. Without this, an
+                    # config.cfg that already has literal host/port lines
+                    # under a prometheus_out section (e.g. one written by
+                    # an older version of this scanner, before host/port
+                    # became is_active=False and stopped being written to
+                    # disk at all) would insert a fresh Setting row here,
+                    # then the derive block's own upsert -- looking the row
+                    # up with this same, not-yet-flushed Session
+                    # (autoflush=False, see database.init_db()) -- would
+                    # not see it yet either, and attempt a second INSERT
+                    # for the same (section, key), tripping the table's
+                    # UNIQUE(section, key) constraint and aborting the
+                    # entire scan.
+                    if literal_transport_name == "prometheus_out" and key in ("host", "port"):
+                        continue
                     _upsert_setting(
                         db, section, key, value, transport_type,
                         default_value=self._get_default(section, key, keys, transport_library),
@@ -1213,46 +1266,11 @@ class Scanner:
                 # Devices" dashboard's Host column (device_service.
                 # get_nav_data(), which reads these two keys as plain
                 # Setting rows) shows something meaningful for this bridge
-                # too, same as every other transport type.
-                #
-                # Deliberately NOT independently configurable: computed
-                # fresh on every scan from this section's actual
-                # metrics_port (falling back to PROMETHEUS_OUT_DEFAULT_PORT
-                # -- the WebServer's own default port, see
-                # classes.WebServer.main.start_webserver()'s `port`
-                # parameter -- when metrics_port is unset), so they can
-                # never drift out of sync with it the way two independently
-                # user-edited values could. Any literal host/port a user
-                # has in config.cfg for a prometheus_out section is
-                # intentionally ignored and overwritten here -- there is
-                # deliberately only one source of truth (metrics_port).
-                #
-                # cfg_is_truth=True is forced (regardless of
-                # self._cfg_is_truth) because these two values are never a
-                # "staged, uncommitted edit" -- they should always reflect
-                # the current config.cfg state immediately, every scan.
-                # ------------------------------------------------------------
-                # Derive host/port for prometheus_out sections
-                # ------------------------------------------------------------
-                # prometheus_out has no real "connect out to" host/port the
-                # way most transports do -- it's scraped, not connecting
-                # out. host/port here exist purely so the "Configured
-                # Devices" dashboard's Host column (device_service.
-                # get_nav_data(), which reads these two keys as plain
-                # Setting rows) shows something meaningful for this bridge
-                # too, same as every other transport type.
-                #
-                # Deliberately NOT independently configurable: computed
-                # fresh on every scan from this section's actual
-                # metrics_port (falling back to PROMETHEUS_OUT_DEFAULT_PORT
-                # -- the WebServer's own default port, see
-                # classes.WebServer.main.start_webserver()'s `port`
-                # parameter -- when metrics_port is unset), so they can
-                # never drift out of sync with it the way two independently
-                # user-edited values could. Any literal host/port a user
-                # has in config.cfg for a prometheus_out section is
-                # intentionally ignored and overwritten here -- there is
-                # deliberately only one source of truth (metrics_port).
+                # too, same as every other transport type. The actual
+                # derivation (host is always "0.0.0.0"; port is
+                # metrics_port if set, else DEFAULT_METRICS_PORT) lives in
+                # classes.transports.prometheus_out.derive_dashboard_host_port()
+                # -- see that function's docstring for the full rationale.
                 #
                 # cfg_is_truth=True is forced (regardless of
                 # self._cfg_is_truth) because these two values are never a
@@ -1264,23 +1282,47 @@ class Scanner:
                 # after the first scan, silently reintroducing the exact
                 # host/port drift problem this mechanism exists to prevent.
                 #
+                # is_active=False is equally deliberate, and for the same
+                # underlying reason: prometheus_out.__init__ never reads a
+                # "host" or "port" config key at all (self.host/self.port
+                # are computed in Python from metrics_port, not read from
+                # config.cfg) -- so these two rows have no config.cfg
+                # representation to keep in sync with in the first place.
+                # Leaving is_active at its True default would make
+                # config_writer._build_config_text() write them into
+                # config.cfg as real, literal "host = ..." / "port = ..."
+                # lines on every commit -- lines nothing ever reads back,
+                # that can only go stale the moment metrics_port next
+                # changes (exactly the drift this whole mechanism exists to
+                # avoid) since nothing re-commits them on every scan, only
+                # a user-initiated commit does. is_active=False keeps them
+                # DB-only and dashboard-only, as they should be:
+                # device_service._get_section_keys() reads every Setting
+                # row for a section regardless of is_active, so the
+                # dashboard is unaffected; config_writer._build_config_text()
+                # explicitly skips inactive rows, so config.cfg never gets
+                # a copy of these two values to go stale in the first
+                # place. (Also mirrors the same is_active=False pattern
+                # already used a bit further below, in the "known-but-unset
+                # registry key" loop, for exactly this pair of keys.)
+                #
                 # IMPORTANT: transport_type here is the broad CATEGORY
                 # _classify_transport() returns ("scraper" | "bridge" |
                 # "general") -- see that function's own docstring -- NEVER
                 # the literal transport name. An earlier version of this
                 # fix mistakenly compared transport_type itself against
                 # "prometheus_out", which can never be true (prometheus_out
-                # classifies as "bridge") and silently never ran. The
-                # literal transport name is a separate value, read directly
-                # from the section's own `transport =` config.cfg line.
-                literal_transport_name: str = keys.get("transport", "").strip()
+                # classifies as "bridge") and silently never ran.
+                # literal_transport_name (computed once, above the per-key
+                # loop) is the correct value to compare instead.
                 if literal_transport_name == "prometheus_out":
-                    derived_port: str = keys.get("metrics_port", "").strip() or str(PROMETHEUS_OUT_DEFAULT_PORT)
-                    for derived_key, derived_value in (("host", "0.0.0.0"), ("port", derived_port)):  # noqa: S104
+                    derived_host, derived_port = derive_dashboard_host_port(keys.get("metrics_port", ""))
+                    for derived_key, derived_value in (("host", derived_host), ("port", derived_port)):
                         _upsert_setting(
                             db, section, derived_key, derived_value, transport_type,
                             default_value=derived_value,
                             cfg_is_truth=True,
+                            is_active=False,
                         )
                         seen_setting_keys.add((section, derived_key))
                         stats["settings_upserted"] += 1

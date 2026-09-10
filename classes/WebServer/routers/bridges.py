@@ -16,16 +16,31 @@
 # limitations under the License.
 
 """
-routers/bridges.py — Read-only bridge status partials.
+routers/bridges.py — Read-only bridge status partials, plus Prometheus's
+app-assembly wiring.
 Registered in main.py via app.include_router(bridges_router).
 
 These back the passive "Bridges" pulldown / device-page panels (see
 partials/bridge_panes.html) — Bridge Health, Storage Overview, Indexes,
 Compression & Retention Status, Background Job Status for TimescaleDB;
 Bridge Health/Storage for InfluxDB v1/v3; Bridge Health for MQTT; Bridge
-Health/Target Health for Prometheus. Every route here is purely
+Health/Target Health for Prometheus. Every ROUTE in this module is purely
 observational: nothing on these panels is clickable, and nothing here
 mutates bridge state.
+
+The one exception to "purely observational" is a pair of plain functions
+at the bottom of this file -- mount_prometheus_bridges() and
+collect_prometheus_metrics_ports() -- which aren't routes at all. They're
+called directly by classes.WebServer.main during app assembly and server
+startup, not by an HTTP request, and the former does mutate the FastAPI
+app object (app.mount()). They live here rather than in
+services/bridge_service.py because that module's contract is strictly
+"take a gateway, return read-only data for a template" -- no function
+there touches a FastAPI `app` object or runs outside a request. Prometheus
+is the only bridge type that needs this kind of app-assembly wiring at
+all (it's pull-based: it has to actually serve HTTP itself, not just
+report on a connection it owns), so it stays paired with this module's
+other Prometheus-specific code rather than being split across two files.
 
 This is deliberately separate from routers/timescale.py, which owns the
 "Timescale DB" admin menu (Delete Columns / Rebuild Rollups / Rebuild
@@ -70,6 +85,12 @@ if TYPE_CHECKING:
     # in the first place (see the same pattern in commit.py/devices.py/
     # timescale.py/pages.py). Only needed here, under TYPE_CHECKING, for
     # the annotations below.
+    # Soft dependency only, for the type annotation on
+    # mount_prometheus_bridges() below -- never evaluated at runtime under
+    # `from __future__ import annotations`. main.py imports fastapi
+    # directly for its own app; this module doesn't need it at runtime.
+    from fastapi import FastAPI
+
     from protocol_gateway import Protocol_Gateway
 
 router = APIRouter(tags=["bridges"])
@@ -379,3 +400,76 @@ async def prometheus_targets_partial(device_name: str, request: Request):
         name="partials/bridge_prometheus_targets_panel.html",
         context={"targets": targets},
     )
+
+
+# ---------------------------------------------------------------------------
+# Prometheus bridge app-assembly wiring
+#
+# Unlike every other bridge type in this module (TimescaleDB, InfluxDB,
+# MQTT), Prometheus is pull-based: it needs to actually serve HTTP itself,
+# not just report on a connection it owns. classes.WebServer.main calls
+# the two functions below during app assembly and server startup; they're
+# kept here (not in main.py) so nothing Prometheus-specific has to live in
+# that module at all -- see classes.transports.prometheus_out for the
+# actual bridge-lookup/mounting logic these two functions just call
+# through to.
+#
+# Both use a deferred, function-local import of
+# classes.transports.prometheus_out, same reasoning as
+# get_prometheus_health()/get_prometheus_targets() above (via
+# services.bridge_service): prometheus_client is only required if a
+# prometheus_out bridge is actually configured, and this router module is
+# imported unconditionally by main.py at startup (see
+# `from .routers.bridges import router as bridges_router`), so it must
+# stay importable even when that optional dependency is missing.
+# ---------------------------------------------------------------------------
+
+def collect_prometheus_metrics_ports(gateway_instance: object | None) -> dict[int, list[str]]:
+    """
+    ``{port: [metrics_path, ...]}`` for every configured prometheus_out
+    bridge's dedicated `metrics_port` -- every bridge has one (default
+    9110; see classes.transports.prometheus_out.DEFAULT_METRICS_PORT),
+    there is no "share the main WebServer port" mode. Called from
+    classes.WebServer.main.start_webserver(), which binds one extra
+    listening socket per port returned here.
+
+    Returns `{}` if no prometheus_out bridge is configured, or if
+    prometheus_client isn't installed -- in the latter case there is
+    nothing to report, since MPG can't build a prometheus_out transport at
+    all without that dependency (protocol_gateway.py's transport loader
+    would already have failed before this function ever runs).
+    """
+    try:
+        from classes.transports.prometheus_out import collect_metrics_ports
+    except ImportError:
+        return {}
+    return collect_metrics_ports(gateway_instance)
+
+
+def mount_prometheus_bridges(app: "FastAPI", gateway_instance: object | None, webserver_port: int) -> None:
+    """
+    Mount every configured prometheus_out bridge's /metrics endpoint onto
+    `app` (the WebServer's own FastAPI app -- the process that's always
+    running, since MPG has no headless mode). There is no other way to
+    serve a prometheus_out bridge; it has no standalone-server mode of
+    its own. Called from classes.WebServer.main.create_app()'s lifespan
+    startup.
+
+    `webserver_port` is passed straight through to
+    classes.transports.prometheus_out.mount_bridges() -- see its
+    docstring for what it's used for.
+
+    Deferred import, mirroring collect_prometheus_metrics_ports() above:
+    if prometheus_client isn't installed, there cannot be a live
+    prometheus_out bridge to mount either (see that function's
+    docstring), so this quietly does nothing rather than erroring.
+    """
+    try:
+        from classes.transports.prometheus_out import mount_bridges
+    except ImportError:
+        # No prometheus_out bridge can be live on gateway_instance without
+        # prometheus_client already having imported successfully once
+        # (protocol_gateway.py's transport loader would have raised first)
+        # -- so reaching here just means none is configured.
+        return
+    mount_bridges(app, gateway_instance, webserver_port)
