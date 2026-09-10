@@ -54,6 +54,14 @@ next to its code rather than living only in a merge commit message.
                     InfluxDB/MQTT — a gateway could run more than one
                     Prometheus bridge on different ports/paths.
 
+    DELETION      — delete_bridge(), at the bottom of this file. The one
+                    function here that isn't read-only introspection of a
+                    live bridge object: it edits the staging DB directly
+                    to remove a bridge's section (and any scraper "bridge"
+                    references to it) ahead of the next commit. See its
+                    own docstring for why it lives here paired with
+                    routers/bridges.py rather than in device_service.py.
+
 """
 from __future__ import annotations
 
@@ -126,6 +134,8 @@ def _format_bytes(n: int | None) -> str:
 # importing protocol_gateway at module load time risks a circular import,
 # since it's what wires up the WebServer app in the first place.
 if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
+
     from protocol_gateway import Protocol_Gateway
 
     from ...transports.timescaledb import (
@@ -134,6 +144,7 @@ if TYPE_CHECKING:
         WideTableFieldDeletionResult,
         timescaledb,
     )
+    from ..models import Setting
 
 # A great many functions below deliberately keep `Any` for values that
 # originate from calling a method on an mqtt/influxdb/prometheus bridge
@@ -1196,3 +1207,121 @@ def get_prometheus_targets(gateway: "Protocol_Gateway | None", device_section: s
             row["seconds_since_last_scrape"] = None
             row["last_scrape_display"] = "never"
     return rows
+
+
+# ---------------------------------------------------------------------------
+# BRIDGE DELETION — "Delete Bridge" button on bridge_panes.html
+# ---------------------------------------------------------------------------
+#
+# Unlike every other function in this file, this one touches the staging
+# DB (Setting rows) rather than a live bridge/gateway object — deleting a
+# bridge is a config-shape edit, not a runtime introspection. It lives
+# here rather than in device_service.py because the caller
+# (routers/bridges.py) is the bridge-specific router, and this is the
+# bridge-specific half of a two-sided relationship: the other half —
+# ensure_bridge_sections_exist(), which *creates* a bridge section the
+# first time a scraper's "bridge" multi-select references one that
+# doesn't exist yet — lives in device_service.py because *its* caller is
+# devices.py's update_setting(). Same relationship, opposite direction,
+# each paired with the router that triggers it.
+
+class BridgeDeletionResult(TypedDict):
+    section: str                  # "transport.<bridge_name>" that was removed
+    deleted_keys: int             # number of Setting rows removed for it
+    updated_scrapers: list[str]   # scraper device names whose "bridge" value changed
+
+
+def delete_bridge(db: "Session", bridge_name: str) -> BridgeDeletionResult:
+    """
+    Permanently deletes a bridge's [transport.<bridge_name>] section from
+    the staging DB, and — in the same transaction — strips any reference
+    to that bridge from every scraper's "bridge" setting (the comma-
+    separated "transport.<name>, ..." multi-select value written by the
+    bridge picker in scraper_panes.html; see
+    device_service.ensure_bridge_sections_exist for the create-time half
+    of this relationship).
+
+    This is a hard delete, not a stage-for-commit — the same choice
+    device_service.delete_orphan()/delete_orphans_bulk() make for orphaned
+    settings, and for the same reason: a deletion isn't a value to write
+    back on commit, it's the absence of the row. config_writer's
+    _build_config_text() only ever emits a [section] header for rows it
+    still has (see that function's docstring), so once these rows are
+    gone the bridge's section simply stops appearing in config.cfg the
+    next time "Commit" runs — this function doesn't touch config.cfg (or
+    any other file) directly, exactly like every other Setting edit in
+    this module keeps to the DB and leaves the disk write to commit_all().
+
+    The scraper-side "bridge" values are edited by removing just the
+    deleted bridge's "transport.<bridge_name>" entry from the comma list
+    and re-staging the remainder (mark_dirty()), the same partial-edit
+    approach update_setting() uses for every other staged field — the
+    scraper's other bridge references (if it fans out to more than one)
+    and every other setting on that scraper are left untouched.
+
+    Raises ValueError if:
+      - no [transport.<bridge_name>] section exists at all, or
+      - a section by that name exists but isn't a bridge (transport_type
+        not = to "bridge") — e.g. the name of a scraper. Callers
+        (routers/bridges.py) turn either case into an HTTP error rather
+        than silently deleting the wrong kind of section.
+    """
+    from ..models import Setting  # noqa: PLC0415 — see module docstring: this
+    # file otherwise has zero DB dependency, so the import is scoped to this
+    # one function rather than added to the module's always-run imports.
+
+    section: str = f"transport.{bridge_name}"
+
+    rows: list["Setting"] = (
+        db.query(Setting).filter(Setting.section == section).all()
+    )
+    if not rows:
+        msg: str = f"No bridge section '{section}' exists."
+        _log.warning("delete_bridge: %s", msg)
+        raise ValueError(msg)
+    if rows[0].transport_type != "bridge":
+        msg: str = f"Section '{section}' is not a bridge."
+        _log.warning("delete_bridge: %s", msg)
+        raise ValueError(msg)
+
+    deleted_keys: int = len(rows)
+    for row in rows:
+        db.delete(row)
+
+    # Strip this bridge from every scraper's "bridge" multi-select value so
+    # a commit doesn't leave a dangling "bridge = transport.<bridge_name>"
+    # reference pointing at a section that no longer exists in the DB.
+    reference: str = section
+    updated_scrapers: list[str] = []
+
+    bridge_refs: list["Setting"] = (
+        db.query(Setting)
+        .filter(Setting.transport_type == "scraper", Setting.key == "bridge")
+        .all()
+    )
+    for setting in bridge_refs:
+        current_value: str | None = (
+            setting.value_staged if setting.value_staged is not None else setting.value_disk
+        )
+        if not current_value:
+            continue
+
+        parts: list[str] = [p.strip() for p in current_value.split(",") if p.strip()]
+        if reference not in parts:
+            continue
+
+        remaining: list[str] = [p for p in parts if p != reference]
+        setting.value_staged = ", ".join(remaining)
+        setting.mark_dirty()
+        updated_scrapers.append(setting.section.removeprefix("transport."))
+
+    _log.info(
+        "delete_bridge: removed '%s' (%d keys); cleared reference from scraper(s): %s",
+        section, deleted_keys, ", ".join(updated_scrapers) or "(none)",
+    )
+
+    return {
+        "section": section,
+        "deleted_keys": deleted_keys,
+        "updated_scrapers": updated_scrapers,
+    }
