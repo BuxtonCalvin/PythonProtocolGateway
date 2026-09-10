@@ -1262,7 +1262,7 @@ def delete_bridge(db: "Session", bridge_name: str) -> BridgeDeletionResult:
     Raises ValueError if:
       - no [transport.<bridge_name>] section exists at all, or
       - a section by that name exists but isn't a bridge (transport_type
-        != "bridge") — e.g. the name of a scraper. Callers
+        not = to "bridge") — e.g. the name of a scraper. Callers
         (routers/bridges.py) turn either case into an HTTP error rather
         than silently deleting the wrong kind of section.
     """
