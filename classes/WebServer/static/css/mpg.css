@@ -45,91 +45,83 @@
    between light/dark mode — what changes per theme is which token a
    given component uses (see the .dark overrides throughout this file).
    Change a brand color here and every component picks it up.
+
+   FORMAT (2026-09, upgraded to match Tailwind v4's own convention):
+   every token below is a complete CSS color (hex), consumed bare —
+   `var(--mpg-warning)`, not `rgb(var(--mpg-warning))`. This matches how
+   Tailwind v4's own @theme block (input.css) defines its tokens, e.g.
+   `--color-warning: #f59e0b`, used bare in its generated utilities
+   (`.bg-warning { background-color: var(--color-warning) }`).
+   Before this upgrade, this file used Tailwind v3's older convention —
+   bare "R G B" channel triples requiring an rgb(...) wrapper at every
+   use site — for opacity, that meant `rgb(var(--mpg-danger) / 0.15)`.
+   The v4-native equivalent for opacity is color-mix(), used throughout
+   this file now: `color-mix(in oklab, var(--mpg-danger) 15%, transparent)`
+   (this is exactly what Tailwind v4's own arbitrary-opacity utilities,
+   e.g. `bg-danger/15`, compile down to — see tailwind.css).
+
+   NAMING — why these are --mpg-* and not --color-*:
+   Independently of the format, five of these tokens (accent, success,
+   warning, danger, dirty) used to be spelled --color-*, identically to
+   the five same-named tokens in Tailwind's theme block above. Because
+   this stylesheet has no @layer, its :root block always wins the
+   cascade over Tailwind's layered one, regardless of specificity or
+   link order — so this file's declaration silently overwrote
+   Tailwind's for those five names. That collision, not the token
+   format on its own, is what broke every Tailwind utility that used
+   one of those five names directly (`data-[dirty=true]:bg-warning`,
+   `.text-success`, `.bg-danger`, ...): with this file's OLD triple
+   value in place of Tailwind's real color, those utilities' `var(...)`
+   resolved to invalid CSS and were silently dropped. That's why
+   "Commit All Changes" never actually turned yellow.
+
+   Renaming these five to --mpg-* removes the name collision, so
+   Tailwind's own --color-* tokens are no longer shadowed — independent
+   of the format upgrade above, which fixed the equivalent problem for
+   every OTHER Tailwind utility built on a --color-* name this file
+   doesn't happen to reuse. Keep both fixes in place: if a token here
+   is ever renamed back to --color-accent/success/warning/danger/dirty,
+   it reintroduces the naming collision (format upgrade or not) for
+   every Tailwind utility that uses that name.
    ══════════════════════════════════════════════════════════════════════ */
 :root {
   /* mpg-N grayscale/blue scale — from base.html's original 50..900 ramp */
-  --mpg-900: 15 23 42;
-  --mpg-800: 26 37 53;
-  --mpg-700: 36 48 64;
-  --mpg-600: 46 61 82;
-  --mpg-500: 61 81 102;
-  --mpg-400: 91 122 153;
-  --mpg-300: 140 174 200;
-  --mpg-200: 185 208 228;
-  --mpg-100: 221 234 245;
-  --mpg-50:  240 246 252;
+  --mpg-900: #0f172a;
+  --mpg-800: #1a2535;
+  --mpg-700: #243040;
+  --mpg-600: #2e3d52;
+  --mpg-500: #3d5166;
+  --mpg-400: #5b7a99;
+  --mpg-300: #8caec8;
+  --mpg-200: #b9d0e4;
+  --mpg-100: #ddeaf5;
+  --mpg-50:  #f0f6fc;
 
   /* Brand / semantic colors */
-  --color-accent:  56 189 248;   /* sky-400  — focus rings, active tabs, links */
-  --color-primary: 14 165 233;   /* sky-500  — primary buttons, docs links */
-  --color-success: 34 197 94;    /* green-500 */
-  --color-warning: 245 158 11;   /* amber-500 */
-  --color-danger:  239 68 68;    /* red-500 */
-  --color-dirty:   251 146 60;   /* orange-400 — "uncommitted change" indicator */
+  --mpg-accent:  #38bdf8;   /* sky-400  — focus rings, active tabs, links */
+  --color-primary: #0ea5e9;   /* sky-500  — primary buttons, docs links */
+  --mpg-success: #22c55e;    /* green-500 */
+  --mpg-warning: #f59e0b;   /* amber-500 */
+  --mpg-danger:  #ef4444;    /* red-500 */
+  --mpg-dirty:   #fb923c;   /* orange-400 — "uncommitted change" indicator */
 
   /* Secondary component-level colors: recur often enough to name, but      */
   /* aren't part of the core mpg-N ramp or a semantic brand color.          */
-  --color-tint: 226 235 244;             /* soft light-mode input/card tint, between mpg-50 and mpg-100 */
-  --color-label-light: 14 116 144;       /* cyan-700 — .label text, light mode */
-  --color-label-dark: 125 211 252;       /* sky-300  — .label text, dark mode */
-  --color-input-light-bg: 209 220 232;
-  --color-input-light-border: 160 185 208;
-  --color-input-hover-border: 100 140 180;
-  --color-tab-active-dark: 56 72 95;     /* raised tab-active background on dark panels */
+  --color-tint: #e2ebf4;             /* soft light-mode input/card tint, between mpg-50 and mpg-100 */
+  --color-label-light: #0e7490;       /* cyan-700 — .label text, light mode */
+  --color-label-dark: #7dd3fc;       /* sky-300  — .label text, dark mode */
+  --color-input-light-bg: #d1dce8;
+  --color-input-light-border: #a0b9d0;
+  --color-input-hover-border: #648cb4;
+  --color-tab-active-dark: #38485f;     /* raised tab-active background on dark panels */
 }
-/* Note on --mpg-900: base.html's original palette defined this as
-   rgb(15 25 35), but .theme-input's dark branch, .chrome-input,
-   .ts-description-input, and .diff-table-header had all independently
-   drifted to a second, slightly bluer near-black (rgb(15 23 42)) instead
-   — both were informally labeled "mpg-900" in comments. Merged into one
-   token at rgb(15 23 42) (2026-08, explicit decision): the scrollbar
-   track and the Help/Docs screenshot frame / code block backgrounds
-   shift very slightly bluer as a result; every other --mpg-900 usage was
-   already at this value. */
 
-/* ── Brand mark — the "MPG" text logo in the top nav ─────────────────────
-   Flat color only, no glow/gradient (the source logo artwork has those,
-   this intentionally doesn't). Uses --color-primary rather than
-   --color-accent: --color-accent is reused everywhere for focus rings,
-   active tabs, and links, so tying the brand mark to it would mean any
-   future accent-color change also silently recolors the logo. Decoupling
-   the two lets each vary independently. Dark mode swaps to the lighter
-   --color-accent tone for a bit more contrast against the header's
-   near-black background — same light/dark token-swap pattern used
-   throughout this file (e.g. .label below), just applied to one element. */
 .brand-mark {
-  color: rgb(var(--color-primary));
+  color: var(--color-primary);
 }
 .dark .brand-mark {
-  color: rgb(var(--color-accent));
+  color: var(--mpg-accent);
 }
-
-/* ── Semantic color utility fix ──────────────────────────────────────── */
-/* The --color-* tokens above are stored as bare "R G B" channel triples, */
-/* not full CSS colors, because most of this file consumes them via       */
-/* rgb(var(--color-X)) or rgb(var(--color-X) / <alpha>) for opacity       */
-/* control (badges, tabs, cards, ...). Tailwind's OWN generated utilities */
-/* for these same token names — text-success, bg-success, text-danger,    */
-/* text-warning, text-accent, bg-accent, bg-danger, border-warning,       */
-/* border-accent — instead do e.g. `color: var(--color-success)` directly,*/
-/* which needs a complete CSS color, not a bare triple. Both consume the  */
-/* same custom property name, so only one format can be "correct" at the  */
-/* property level; the triple form wins (used far more widely, including  */
-/* for opacity variants that would otherwise need a second token), and     */
-/* the small set of Tailwind utilities that assume a full color are        */
-/* re-declared here instead. This is what silently turned status text      */
-/* like "Connected" black instead of green via .text-success — the        */
-/* underlying variable was never actually invalid for badges, just for    */
-/* Tailwind's own direct-var utilities.                                    */
-.text-success   { color: rgb(var(--color-success))            !important; }
-.bg-success     { background-color: rgb(var(--color-success)) !important; }
-.text-danger    { color: rgb(var(--color-danger))              !important; }
-.bg-danger      { background-color: rgb(var(--color-danger))   !important; }
-.text-warning   { color: rgb(var(--color-warning))             !important; }
-.border-warning { border-color: rgb(var(--color-warning))      !important; }
-.text-accent    { color: rgb(var(--color-accent))              !important; }
-.bg-accent      { background-color: rgb(var(--color-accent))   !important; }
-.border-accent  { border-color: rgb(var(--color-accent))       !important; }
 
 
 /* ══════════════════════════════════════════════════════════════════════
@@ -138,7 +130,7 @@
 
 /* ── Focus visible (WCAG 2.2 — 2.4.11) ── */
 :focus-visible {
-  outline: 2px solid rgb(var(--color-accent));
+  outline: 2px solid var(--mpg-accent);
   outline-offset: 2px;
   border-radius: 3px;
 }
@@ -188,9 +180,9 @@
 
 /* ── Scrollbar styling (dark surfaces) ── */
 .dark ::-webkit-scrollbar       { width: 6px; height: 6px; }
-.dark ::-webkit-scrollbar-track { background: rgb(var(--mpg-900)); }
-.dark ::-webkit-scrollbar-thumb { background: rgb(var(--mpg-600)); border-radius: 3px; }
-.dark ::-webkit-scrollbar-thumb:hover { background: rgb(var(--mpg-400)); }
+.dark ::-webkit-scrollbar-track { background: var(--mpg-900); }
+.dark ::-webkit-scrollbar-thumb { background: var(--mpg-600); border-radius: 3px; }
+.dark ::-webkit-scrollbar-thumb:hover { background: var(--mpg-400); }
 
 /* ── Typography scale ── */
 h1 { font-size: 1.5rem;    line-height: 2rem;    font-weight: 700; }
@@ -213,20 +205,20 @@ thead { position: sticky; top: 0; z-index: 1; }
    are built from these rather than raw rgb() values.
    ══════════════════════════════════════════════════════════════════════ */
 
-.surface-title { color: rgb(var(--mpg-800)); }
-.dark .surface-title { color: rgb(var(--mpg-50)); }
+.surface-title { color: var(--mpg-800); }
+.dark .surface-title { color: var(--mpg-50); }
 
-.surface-text { color: rgb(var(--mpg-600)); }
-.dark .surface-text { color: rgb(var(--mpg-200)); }
+.surface-text { color: var(--mpg-600); }
+.dark .surface-text { color: var(--mpg-200); }
 
-.surface-muted { color: rgb(var(--mpg-800)); }     /* mpg-800 — strong contrast on light bg */
-.dark .surface-muted { color: rgb(var(--mpg-300)); }
+.surface-muted { color: var(--mpg-800); }     /* mpg-800 — strong contrast on light bg */
+.dark .surface-muted { color: var(--mpg-300); }
 
-.surface-subtle { color: rgb(var(--mpg-500)); }  /* mpg-500 — readable on light bg */
-.dark .surface-subtle { color: rgb(var(--mpg-400)); }
+.surface-subtle { color: var(--mpg-500); }  /* mpg-500 — readable on light bg */
+.dark .surface-subtle { color: var(--mpg-400); }
 
-.surface-code { color: rgb(var(--mpg-800)); }
-.dark .surface-code { color: rgb(var(--mpg-200)); }
+.surface-code { color: var(--mpg-800); }
+.dark .surface-code { color: var(--mpg-200); }
 
 
 /* ══════════════════════════════════════════════════════════════════════
@@ -235,40 +227,27 @@ thead { position: sticky; top: 0; z-index: 1; }
 
 /* ── Card ── */
 .card {
-  background-color: rgb(var(--color-tint) / 0.6); /* light: soft blue-grey tint */
-  border: 1px solid rgb(var(--mpg-200));        /* mpg-200 */
+  background-color: color-mix(in oklab, var(--color-tint) 60%, transparent); /* light: soft blue-grey tint */
+  border: 1px solid var(--mpg-200);        /* mpg-200 */
   border-radius: 0.5rem;
   padding: 0.875rem 1rem;
 }
 .dark .card {
-  background-color: rgb(var(--mpg-800) / 0.7);   /* mpg-800/70 */
-  border-color: rgb(var(--mpg-600));              /* mpg-600 */
+  background-color: color-mix(in oklab, var(--mpg-800) 70%, transparent);   /* mpg-800/70 */
+  border-color: var(--mpg-600);              /* mpg-600 */
 }
 /* Cards inside dark asides always use dark styling */
 aside .card {
-  background-color: rgb(var(--mpg-800) / 0.5);
-  border-color: rgb(var(--mpg-600));              /* mpg-600 */
+  background-color: color-mix(in oklab, var(--mpg-800) 50%, transparent);
+  border-color: var(--mpg-600);              /* mpg-600 */
 }
 .card.border-dirty {
-  border-color: rgb(var(--color-dirty));
+  border-color: var(--mpg-dirty);
 }
 .card.border-warning {
-  border-color: rgb(var(--color-warning));
+  border-color: var(--mpg-warning);
 }
 
-/* ── Bridge panes grid (bridge_panes.html) ── */
-/* Two-column split at the lg breakpoint: left pane 1.5in narrower than   */
-/* 50%, right pane 1.5in wider — left holds the compact config tree,      */
-/* right holds the wider live-data table. Previously written inline as a  */
-/* Tailwind arbitrary value:                                              */
-/*   lg:grid-cols-[calc(50%_-_1.5in)_calc(50%_+_1.5in)]                   */
-/* Moved here because the underscore-as-space syntax that arbitrary value */
-/* requires is easy to break: a formatter or find/replace that strips     */
-/* underscores turns `50%_-_1.5in` into `50%-1.5in`, which is invalid     */
-/* CSS (calc() requires whitespace around binary +/-), silently killing   */
-/* the whole declaration and collapsing the two-pane layout. As a plain   */
-/* named class, this can't be "canonicalized" or reformatted by the       */
-/* Tailwind toolchain since it isn't a Tailwind utility.                  */
 .bridge-panes-grid {
   grid-template-columns: 1fr;
 }
@@ -289,25 +268,25 @@ aside .card {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: rgb(var(--color-label-light));   /* cyan-700 — bright readable blue on light backgrounds */
+  color: var(--color-label-light);   /* cyan-700 — bright readable blue on light backgrounds */
 }
 aside .label,
 .dark .label {
-  color: rgb(var(--color-label-dark));  /* sky-300 — bright readable blue on dark backgrounds */
+  color: var(--color-label-dark);  /* sky-300 — bright readable blue on dark backgrounds */
 }
 
 /* ── Theme-aware form inputs ── */
 /* Use on inputs/selects NOT inside a dark sidebar (aside) */
 .theme-input {
-  background-color: rgb(var(--color-input-light-bg));   /* medium-light blue-grey — clearly not white */
-  border-color: rgb(var(--color-input-light-border));
-  color: rgb(var(--mpg-800));                 /* mpg-800 — dark text */
+  background-color: var(--color-input-light-bg);   /* medium-light blue-grey — clearly not white */
+  border-color: var(--color-input-light-border);
+  color: var(--mpg-800);                 /* mpg-800 — dark text */
 }
 .dark .theme-input,
 aside .theme-input {
-  background-color: rgb(var(--mpg-900));   /* near-black — matches .chrome-input */
-  border-color: rgb(var(--mpg-600));
-  color: rgb(var(--mpg-100));
+  background-color: var(--mpg-900);   /* near-black — matches .chrome-input */
+  border-color: var(--mpg-600);
+  color: var(--mpg-100);
 }
 
 /* ── Chrome input (always-dark form control) ── */
@@ -315,40 +294,40 @@ aside .theme-input {
 /* editor, and other always-dark panes like the top nav / log viewer —    */
 /* as opposed to .theme-input, which adapts to light/dark.                */
 .chrome-input {
-  background-color: rgb(var(--mpg-900));   /* near-black — matches .theme-input's dark branch */
-  border: 1px solid rgb(var(--mpg-600));
-  color: rgb(var(--mpg-100));
+  background-color: var(--mpg-900);   /* near-black — matches .theme-input's dark branch */
+  border: 1px solid var(--mpg-600);
+  color: var(--mpg-100);
 }
 .chrome-input:focus {
   outline: none;
-  box-shadow: 0 0 0 1px rgb(var(--color-accent));  /* accent */
+  box-shadow: 0 0 0 1px var(--mpg-accent);  /* accent */
 }
 
 /* ── Transport settings description editable input ── */
 .ts-description-input {
-  background-color: rgb(var(--color-input-light-bg));
-  border-color: rgb(var(--color-input-light-border));
-  color: rgb(var(--mpg-800));
+  background-color: var(--color-input-light-bg);
+  border-color: var(--color-input-light-border);
+  color: var(--mpg-800);
 }
 .ts-description-input:hover {
-  border-color: rgb(var(--color-input-hover-border));
+  border-color: var(--color-input-hover-border);
 }
 .ts-description-input:focus {
-  background-color: rgb(var(--color-tint));
-  border-color: rgb(var(--color-accent));        /* accent */
+  background-color: var(--color-tint);
+  border-color: var(--mpg-accent);        /* accent */
   outline: none;
-  box-shadow: 0 0 0 1px rgb(var(--color-accent));
-  color: rgb(var(--mpg-900));
+  box-shadow: 0 0 0 1px var(--mpg-accent);
+  color: var(--mpg-900);
 }
 .dark .ts-description-input {
   background-color: rgb(22 33 50);
-  border-color: rgb(var(--mpg-500));
-  color: rgb(var(--color-tint));
+  border-color: var(--mpg-500);
+  color: var(--color-tint);
 }
 .dark .ts-description-input:focus {
-  background-color: rgb(var(--mpg-900));
-  border-color: rgb(var(--color-accent));
-  color: rgb(var(--color-tint));
+  background-color: var(--mpg-900);
+  border-color: var(--mpg-accent);
+  color: var(--color-tint);
 }
 
 /* ── Inactive settings field (read-only, not committed to config) ── */
@@ -368,7 +347,7 @@ aside .theme-input {
    ══════════════════════════════════════════════════════════════════════ */
 
 .btn-primary {
-  background-color: rgb(var(--color-primary));
+  background-color: var(--color-primary);
   color: white;
   font-weight: 600;
   padding: 0.375rem 1rem;
@@ -378,89 +357,89 @@ aside .theme-input {
   transition: background-color 0.15s;
 }
 .btn-primary:hover { background-color: #0284c7; }
-.btn-primary:focus-visible { outline: 2px solid rgb(var(--color-accent)); outline-offset: 2px; }
+.btn-primary:focus-visible { outline: 2px solid var(--mpg-accent); outline-offset: 2px; }
 
 .btn-secondary {
   background-color: transparent;
-  color: rgb(var(--mpg-400));
+  color: var(--mpg-400);
   font-weight: 500;
   padding: 0.375rem 0.875rem;
   border-radius: 0.375rem;
-  border: 1px solid rgb(var(--mpg-600));
+  border: 1px solid var(--mpg-600);
   cursor: pointer;
   transition: background-color 0.15s, border-color 0.15s;
 }
 .btn-secondary:hover {
-  background-color: rgb(var(--mpg-600));
-  border-color: rgb(var(--mpg-400));
+  background-color: var(--mpg-600);
+  border-color: var(--mpg-400);
 }
 
 /* --- Light Mode (Your Original Code) --- */
 .btn-tertiary { 
   background-color: transparent; 
-  color: rgb(var(--mpg-800, 30, 41, 59)); 
+  color: var(--mpg-800, #1e293b); 
   font-weight: 600; 
   padding: 0.375rem 0.875rem; 
   border-radius: 0.375rem; 
-  border: 1px solid rgb(var(--mpg-400, 148, 163, 184)); 
+  border: 1px solid var(--mpg-400, #94a3b8); 
   cursor: pointer; 
   transition: background-color 0.15s, border-color 0.15s, color 0.15s; 
 }
 
 .btn-tertiary:hover { 
-  background-color: rgb(var(--mpg-100, 241, 245, 249)); 
-  border-color: rgb(var(--mpg-500, 100, 116, 139)); 
-  color: rgb(var(--mpg-900, 15, 23, 42)); 
+  background-color: var(--mpg-100, #f1f5f9); 
+  border-color: var(--mpg-500, #64748b); 
+  color: var(--mpg-900, #0f172a); 
 }
 
 .btn-tertiary:focus-visible { 
-  outline: 2px solid rgb(var(--color-accent, 14, 165, 233)); 
+  outline: 2px solid var(--mpg-accent, #0ea5e9); 
   outline-offset: 2px; 
 }
 
 /* --- Dark Mode Overrides --- */
 .dark .btn-tertiary {
   /* Swaps to light text (Slate 200) and a subtle border (Slate 700) */
-  color: rgb(var(--mpg-200, 226, 232, 240));
-  border-color: rgb(var(--mpg-700, 51, 65, 85));
+  color: var(--mpg-200, #e2e8f0);
+  border-color: var(--mpg-700, #334155);
 }
 
 .dark .btn-tertiary:hover {
   /* Adds a dim background, crisp border (Slate 500), and vibrant text (Slate 50) */
-  background-color: rgba(var(--mpg-800, 30, 41, 59), 0.4);
-  border-color: rgb(var(--mpg-500, 100, 116, 139));
-  color: rgb(var(--mpg-50, 248, 250, 252));
+  background-color: color-mix(in oklab, var(--mpg-800, #1e293b) 40%, transparent);
+  border-color: var(--mpg-500, #64748b);
+  color: var(--mpg-50, #f8fafc);
 }
 
 
 
 .btn-danger {
-  background-color: rgb(var(--color-danger) / 0.15);
-  color: rgb(var(--color-danger));
+  background-color: color-mix(in oklab, var(--mpg-danger) 15%, transparent);
+  color: var(--mpg-danger);
   font-weight: 600;
   padding: 0.375rem 1rem;
   border-radius: 0.375rem;
-  border: 1px solid rgb(var(--color-danger) / 0.3);
+  border: 1px solid color-mix(in oklab, var(--mpg-danger) 30%, transparent);
   cursor: pointer;
   transition: background-color 0.15s;
 }
-.btn-danger:hover { background-color: rgb(var(--color-danger) / 0.25); }
+.btn-danger:hover { background-color: color-mix(in oklab, var(--mpg-danger) 25%, transparent); }
 
 /* Confirm ("+") button per Create Wizard row — see section 10 */
 .create-add-btn {
-  color: rgb(var(--mpg-600));
-  border-color: rgb(var(--mpg-300));
+  color: var(--mpg-600);
+  border-color: var(--mpg-300);
   background-color: rgb(158 166 175);
   font-weight: 700;
 }
 .create-add-btn:hover:not(:disabled) {
-  background-color: rgb(var(--mpg-200));
-  border-color: rgb(var(--color-input-hover-border));
+  background-color: var(--mpg-200);
+  border-color: var(--color-input-hover-border);
 }
 .create-add-btn:disabled {
-  color: rgb(var(--mpg-400));
-  background-color: rgb(var(--color-tint));
-  border-color: rgb(var(--mpg-200));
+  color: var(--mpg-400);
+  background-color: var(--color-tint);
+  border-color: var(--mpg-200);
 }
 
 
@@ -476,11 +455,11 @@ aside .theme-input {
   font-weight: 600;
   letter-spacing: 0.03em;
 }
-.badge-ok       { background: rgb(var(--color-success) / 0.15); color: rgb(var(--color-success)); }
-.badge-warn     { background: rgb(var(--color-warning) / 0.15); color: rgb(var(--color-warning)); }
-.badge-danger   { background: rgb(var(--color-danger) / 0.15);  color: rgb(var(--color-danger)); }
-.badge-disabled { background: rgb(var(--mpg-600) / 0.6);    color: rgb(var(--mpg-300)); }
-.badge-scraper  { background: rgb(var(--color-accent) / 0.12); color: rgb(var(--color-accent)); }
+.badge-ok       { background: color-mix(in oklab, var(--mpg-success) 15%, transparent); color: var(--mpg-success); }
+.badge-warn     { background: color-mix(in oklab, var(--mpg-warning) 15%, transparent); color: var(--mpg-warning); }
+.badge-danger   { background: color-mix(in oklab, var(--mpg-danger) 15%, transparent);  color: var(--mpg-danger); }
+.badge-disabled { background: color-mix(in oklab, var(--mpg-600) 60%, transparent);    color: var(--mpg-300); }
+.badge-scraper  { background: color-mix(in oklab, var(--mpg-accent) 12%, transparent); color: var(--mpg-accent); }
 .badge-bridge   { background: rgb(167 139 250 / 0.12); color: #a78bfa; }
 
 
@@ -489,42 +468,42 @@ aside .theme-input {
    ══════════════════════════════════════════════════════════════════════ */
 
 .tab-active {
-  background-color: rgb(var(--mpg-600));        /* mpg-600 */
-  color: rgb(var(--color-accent));                 /* accent blue */
-  border: 1px solid rgb(var(--mpg-400));      /* mpg-400 */
-  border-bottom-color: rgb(var(--mpg-600));
+  background-color: var(--mpg-600);        /* mpg-600 */
+  color: var(--mpg-accent);                 /* accent blue */
+  border: 1px solid var(--mpg-400);      /* mpg-400 */
+  border-bottom-color: var(--mpg-600);
   font-weight: 600;
 }
 .tab-inactive {
-  color: rgb(var(--mpg-500));                  /* mpg-500 — dark enough for light bg */
+  color: var(--mpg-500);                  /* mpg-500 — dark enough for light bg */
   border: 1px solid transparent;
   background-color: transparent;
 }
 .tab-inactive span {
-  color: rgb(var(--mpg-500)) !important;      /* mpg-500 — dark enough for light bg */
+  color: var(--mpg-500) !important;      /* mpg-500 — dark enough for light bg */
 }
 .tab-inactive:hover {
-  background-color: rgb(var(--mpg-200) / 0.35); /* mpg-200/35 in light mode */
-  color: rgb(var(--mpg-800));                      /* mpg-800 */
-  border-color: rgb(var(--mpg-300));           /* mpg-300 */
+  background-color: color-mix(in oklab, var(--mpg-200) 35%, transparent); /* mpg-200/35 in light mode */
+  color: var(--mpg-800);                      /* mpg-800 */
+  border-color: var(--mpg-300);           /* mpg-300 */
 }
 
 .dark .tab-active {
-  background-color: rgb(var(--color-tab-active-dark));        /* raised on dark panels */
-  color: rgb(var(--color-accent));
-  border-color: rgb(var(--mpg-400));
-  border-bottom-color: rgb(var(--color-tab-active-dark));
+  background-color: var(--color-tab-active-dark);        /* raised on dark panels */
+  color: var(--mpg-accent);
+  border-color: var(--mpg-400);
+  border-bottom-color: var(--color-tab-active-dark);
 }
 .dark .tab-inactive {
-  color: rgb(var(--mpg-200));                /* mpg-200 */
+  color: var(--mpg-200);                /* mpg-200 */
 }
 .dark .tab-inactive span {
-  color: rgb(var(--mpg-200)) !important;    /* override Tailwind text-mpg-* on child spans */
+  color: var(--mpg-200) !important;    /* override Tailwind text-mpg-* on child spans */
 }
 .dark .tab-inactive:hover {
-  background-color: rgb(var(--mpg-600) / 0.6);  /* mpg-600/60 */
-  color: rgb(var(--mpg-50));                /* mpg-50 */
-  border-color: rgb(var(--mpg-400));          /* mpg-400 */
+  background-color: color-mix(in oklab, var(--mpg-600) 60%, transparent);  /* mpg-600/60 */
+  color: var(--mpg-50);                /* mpg-50 */
+  border-color: var(--mpg-400);          /* mpg-400 */
 }
 
 
@@ -534,30 +513,30 @@ aside .theme-input {
 
 /* ── Full-width app table (dashboard, transport library, ...) ── */
 .surface-table {
-  border-color: rgb(var(--mpg-200));
+  border-color: var(--mpg-200);
 }
 .dark .surface-table {
-  border-color: rgb(var(--mpg-600));
+  border-color: var(--mpg-600);
 }
 .surface-table thead tr {
-  background-color: rgb(var(--mpg-800));
-  color: rgb(var(--mpg-200));
+  background-color: var(--mpg-800);
+  color: var(--mpg-200);
 }
 .dark .surface-table thead tr {
-  background-color: rgb(var(--mpg-800));
-  color: rgb(var(--mpg-300));
+  background-color: var(--mpg-800);
+  color: var(--mpg-300);
 }
 .surface-table tbody tr {
-  border-top-color: rgb(var(--mpg-200) / 0.85);
+  border-top-color: color-mix(in oklab, var(--mpg-200) 85%, transparent);
 }
 .dark .surface-table tbody tr {
-  border-top-color: rgb(var(--mpg-600));
+  border-top-color: var(--mpg-600);
 }
 .surface-table tbody tr:hover {
-  background-color: rgb(var(--mpg-100) / 0.65);
+  background-color: color-mix(in oklab, var(--mpg-100) 65%, transparent);
 }
 .dark .surface-table tbody tr:hover {
-  background-color: rgb(var(--mpg-800) / 0.5);
+  background-color: color-mix(in oklab, var(--mpg-800) 50%, transparent);
 }
 
 /* ── Mini data table (bridge/timescale panel tables) ──────────────────── */
@@ -567,11 +546,11 @@ aside .theme-input {
 /* themes (same rationale as .surface-table's header — a data-grid header  */
 /* row, not page prose), body text is theme-adaptive.                      */
 .mini-table-header {
-  background-color: rgb(var(--mpg-800));   /* mpg-800 */
-  color: rgb(var(--mpg-100));           /* mpg-100 */
+  background-color: var(--mpg-800);   /* mpg-800 */
+  color: var(--mpg-100);           /* mpg-100 */
 }
 .mini-table-header th {
-  border-right: 1px solid rgb(var(--mpg-700));  /* mpg-700 */
+  border-right: 1px solid var(--mpg-700);  /* mpg-700 */
 }
 .mini-table-header th:last-child {
   border-right: none;
@@ -579,44 +558,44 @@ aside .theme-input {
 /* Nested/sub-group variant (e.g. a group's own view/table breakdown one  */
 /* level down from the group header) — same idea, softened with opacity.  */
 .mini-table-header--sub {
-  background-color: rgb(var(--mpg-800) / 0.6);   /* mpg-800/60 */
-  color: rgb(var(--mpg-100));                 /* mpg-100 */
+  background-color: color-mix(in oklab, var(--mpg-800) 60%, transparent);   /* mpg-800/60 */
+  color: var(--mpg-100);                 /* mpg-100 */
 }
 .mini-table-header--sub th {
-  border-right: 1px solid rgb(var(--mpg-700) / 0.5);  /* mpg-700/50 */
+  border-right: 1px solid color-mix(in oklab, var(--mpg-700) 50%, transparent);  /* mpg-700/50 */
 }
 .mini-table-header--sub th:last-child {
   border-right: none;
 }
 .mini-table-row {
-  border-top: 1px solid rgb(var(--mpg-700) / 0.3);  /* mpg-700/30 */
+  border-top: 1px solid color-mix(in oklab, var(--mpg-700) 30%, transparent);  /* mpg-700/30 */
 }
 .mini-table-row:hover {
-  background-color: rgb(var(--mpg-800) / 0.4);      /* mpg-800/40 */
+  background-color: color-mix(in oklab, var(--mpg-800) 40%, transparent);      /* mpg-800/40 */
 }
 .mini-table-col-divider {
-  border-right: 1px solid rgb(var(--mpg-700) / 0.3);  /* mpg-700/30 */
+  border-right: 1px solid color-mix(in oklab, var(--mpg-700) 30%, transparent);  /* mpg-700/30 */
 }
 .mini-table-value {
-  color: rgb(var(--mpg-500));       /* mpg-500 */
+  color: var(--mpg-500);       /* mpg-500 */
 }
 .dark .mini-table-value {
-  color: rgb(var(--mpg-100));     /* mpg-100 */
+  color: var(--mpg-100);     /* mpg-100 */
 }
 .mini-table-subtext {
-  color: rgb(var(--mpg-600));        /* mpg-600 */
+  color: var(--mpg-600);        /* mpg-600 */
 }
 .dark .mini-table-subtext {
-  color: rgb(var(--mpg-300));       /* mpg-300 */
+  color: var(--mpg-300);       /* mpg-300 */
 }
 /* Page-level muted meta text next to a mini-table's heading (group       */
 /* counts, "No X found" placeholders, table-name badges) — distinct from  */
 /* .mini-table-subtext, which is for a secondary line *inside* a cell.    */
 .mini-table-meta {
-  color: rgb(var(--mpg-600));        /* mpg-600 */
+  color: var(--mpg-600);        /* mpg-600 */
 }
 .dark .mini-table-meta {
-  color: rgb(var(--mpg-400));      /* mpg-400 */
+  color: var(--mpg-400);      /* mpg-400 */
 }
 
 /* ── Column header row above a wizard-driven editable grid/table ── */
@@ -628,12 +607,12 @@ aside .theme-input {
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: rgb(var(--mpg-500));                        /* mpg-500 */
-  border-bottom: 1px solid rgb(var(--mpg-200));    /* mpg-200 */
+  color: var(--mpg-500);                        /* mpg-500 */
+  border-bottom: 1px solid var(--mpg-200);    /* mpg-200 */
 }
 .dark .wizard-col-header {
-  color: rgb(var(--mpg-300));                      /* mpg-300 */
-  border-bottom-color: rgb(var(--mpg-600));           /* mpg-600 */
+  color: var(--mpg-300);                      /* mpg-300 */
+  border-bottom-color: var(--mpg-600);           /* mpg-600 */
 }
 .wizard-col-header th {
   padding: 0.5rem 0.5rem;
@@ -643,37 +622,21 @@ aside .theme-input {
 /* Row divider for wizard tables (e.g. Register Map CSV rows), theme-     */
 /* adaptive rather than a hardcoded dark-only border. */
 .wizard-table-row {
-  border-top: 1px solid rgb(var(--mpg-200) / 0.85);   /* mpg-200/85 */
+  border-top: 1px solid color-mix(in oklab, var(--mpg-200) 85%, transparent);   /* mpg-200/85 */
 }
 .dark .wizard-table-row {
-  border-top-color: rgb(var(--mpg-600));                  /* mpg-600 */
+  border-top-color: var(--mpg-600);                  /* mpg-600 */
 }
 
-/* ── Diff / orphan review tables (always-dark, see modals below) ── */
-/* Deliberately NOT merged with .mini-table-header/.mini-table-row above,  */
-/* despite looking similar at a glance — two real differences, not drift:  */
-/*   1. Depth: this sits inside the already-dark .modal-panel-dark, so its */
-/*      header goes a shade darker (--color-ink vs --mpg-800) for         */
-/*      contrast against its container. .mini-table-header sits inside a  */
-/*      lighter .card, where --mpg-800 alone provides that contrast.      */
-/*   2. Structure: diff/orphan table headers have no column dividers      */
-/*      (checked against diff_panel.html / orphan_modal.html's <th>       */
-/*      markup — none), whereas .mini-table-header always adds one via    */
-/*      its `th` rule. Merging the classes would either silently add      */
-/*      dividers that were never there, or need enough override           */
-/*      machinery to not be worth it. Both families do share their        */
-/*      underlying palette via the same --mpg-* / --color-ink tokens      */
-/*      above, so they can't drift apart on color even though they stay   */
-/*      separate classes.                                                 */
 .diff-table-header {
-  background-color: rgb(var(--mpg-900));   /* mpg-900 */
-  color: rgb(var(--mpg-400));            /* mpg-400 */
+  background-color: var(--mpg-900);   /* mpg-900 */
+  color: var(--mpg-400);            /* mpg-400 */
   text-align: left;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
 .diff-table-row {
-  border-top: 1px solid rgb(var(--mpg-700) / 0.5);   /* mpg-700/50 */
+  border-top: 1px solid color-mix(in oklab, var(--mpg-700) 50%, transparent);   /* mpg-700/50 */
 }
 
 
@@ -695,15 +658,15 @@ aside .theme-input {
 }
 .modal-panel {
   background-color: white;
-  border: 1px solid rgb(var(--mpg-200));   /* mpg-200 */
+  border: 1px solid var(--mpg-200);   /* mpg-200 */
   border-radius: 0.5rem;
   box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.5);
   display: flex;
   flex-direction: column;
 }
 .dark .modal-panel {
-  background-color: rgb(var(--mpg-800));      /* mpg-800 */
-  border-color: rgb(var(--mpg-600));          /* mpg-600 */
+  background-color: var(--mpg-800);      /* mpg-800 */
+  border-color: var(--mpg-600);          /* mpg-600 */
 }
 .modal-header {
   display: flex;
@@ -711,18 +674,18 @@ aside .theme-input {
   justify-content: space-between;
   gap: 1rem;
   padding: 1rem 1.25rem;
-  border-bottom: 1px solid rgb(var(--mpg-200) / 0.6);
+  border-bottom: 1px solid color-mix(in oklab, var(--mpg-200) 60%, transparent);
 }
 .dark .modal-header {
-  border-bottom-color: rgb(var(--mpg-600));
+  border-bottom-color: var(--mpg-600);
 }
 .modal-close-btn {
-  color: rgb(var(--mpg-500));                /* mpg-500 */
+  color: var(--mpg-500);                /* mpg-500 */
   font-size: 1.125rem;
   line-height: 1;
 }
-.modal-close-btn:hover { color: rgb(var(--mpg-800)); }
-.dark .modal-close-btn { color: rgb(var(--mpg-300)); }
+.modal-close-btn:hover { color: var(--mpg-800); }
+.dark .modal-close-btn { color: var(--mpg-300); }
 .dark .modal-close-btn:hover { color: white; }
 
 /* ── Permanently-dark "utility" modal (diff panel, orphan review) ── */
@@ -739,8 +702,8 @@ aside .theme-input {
   padding-top: 4rem;
 }
 .modal-panel-dark {
-  background-color: rgb(var(--mpg-800));      /* mpg-800 */
-  border: 1px solid rgb(var(--mpg-600));      /* mpg-600 */
+  background-color: var(--mpg-800);      /* mpg-800 */
+  border: 1px solid var(--mpg-600);      /* mpg-600 */
   border-radius: 0.5rem;
   box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.5);
 }
@@ -750,19 +713,19 @@ aside .theme-input {
   justify-content: space-between;
   gap: 1rem;
   padding: 0.75rem 1.25rem;
-  border-bottom: 1px solid rgb(var(--mpg-700));  /* mpg-700 */
+  border-bottom: 1px solid var(--mpg-700);  /* mpg-700 */
   position: sticky;
   top: 0;
-  background-color: rgb(var(--mpg-800));         /* mpg-800 */
+  background-color: var(--mpg-800);         /* mpg-800 */
   z-index: 10;
 }
 .modal-close-btn-dark {
-  color: rgb(var(--mpg-400));       /* mpg-400 */
+  color: var(--mpg-400);       /* mpg-400 */
   padding: 0.375rem;
   border-radius: 0.375rem;
 }
 .modal-close-btn-dark:hover {
-  color: rgb(var(--mpg-100));      /* mpg-100 */
+  color: var(--mpg-100);      /* mpg-100 */
 }
 
 
@@ -791,16 +754,16 @@ aside .theme-input {
 .wizard-preview-text {
   font-family: ui-monospace, 'Cascadia Code', 'Fira Code', Consolas, monospace;
   font-size: 0.875rem;
-  color: rgb(var(--mpg-500));       /* mpg-500 — matches .surface-subtle (light) */
+  color: var(--mpg-500);       /* mpg-500 — matches .surface-subtle (light) */
 }
 .dark .wizard-preview-text {
-  color: rgb(var(--mpg-400));      /* mpg-400 — matches .surface-subtle (dark) */
+  color: var(--mpg-400);      /* mpg-400 — matches .surface-subtle (dark) */
 }
 
 /* Hover highlight for wizard grid/table rows (settings rows, CSV rows,   */
 /* bridge multiselect options) */
 .wizard-row-hover:hover {
-  background-color: rgb(var(--mpg-600) / 0.4);
+  background-color: color-mix(in oklab, var(--mpg-600) 40%, transparent);
 }
 
 
@@ -864,7 +827,7 @@ aside .theme-input {
 
 .log-http-2xx { color: #34d399; } /* green  — success       */
 .log-http-3xx { color: #60a5fa; } /* blue   — redirect      */
-.log-http-4xx { color: #fb923c; } /* orange — client error (deliberately not var(--color-dirty): same hue by coincidence, not a shared semantic token) */
+.log-http-4xx { color: #fb923c; } /* orange — client error (deliberately not var(--mpg-dirty): same hue by coincidence, not a shared semantic token) */
 .log-http-5xx { color: #f87171; } /* red    — server error  */
 
 .log-timestamp { color: #64748b; } /* slate-500 */
@@ -890,15 +853,15 @@ aside .theme-input {
   display: block;
   max-width: 100%;
   width: fit-content;
-  border: 1px solid rgb(var(--mpg-200));
+  border: 1px solid var(--mpg-200);
   border-radius: 0.5rem;
   overflow: visible;   /* must be visible so callouts can extend outside image bounds */
   background: white;
   line-height: 0;
 }
 .dark .docs-shot-frame {
-  border-color: rgb(var(--mpg-600));
-  background: rgb(var(--mpg-900));
+  border-color: var(--mpg-600);
+  background: var(--mpg-900);
 }
 .docs-base-image {
   display: block;
@@ -914,7 +877,7 @@ aside .theme-input {
   pointer-events: none;
 }
 .docs-hotspot-dot {
-  fill: rgb(var(--color-primary));
+  fill: var(--color-primary);
   stroke: white;
   stroke-width: 0.55;
   vector-effect: non-scaling-stroke;
@@ -936,7 +899,7 @@ aside .theme-input {
   gap: 0.45rem;
   max-width: min(18rem, 42%);
   transform: translate(-0.7rem, -0.7rem);
-  color: rgb(var(--mpg-900));
+  color: var(--mpg-900);
   line-height: 1.25;
 }
 .docs-callout[data-auto-offset="true"] {
@@ -950,21 +913,21 @@ aside .theme-input {
   width: 1.35rem;
   height: 1.35rem;
   border-radius: 9999px;
-  background: rgb(var(--color-primary));
+  background: var(--color-primary);
   color: white;
   font-size: 0.72rem;
   font-weight: 700;
-  box-shadow: 0 4px 12px rgb(var(--mpg-900) / 0.25);
+  box-shadow: 0 4px 12px color-mix(in oklab, var(--mpg-900) 25%, transparent);
 }
 .docs-callout p {
   margin: 0;
   padding: 0.45rem 0.55rem;
   border-radius: 0.375rem;
   background: rgb(255 255 255 / 0.94);
-  border: 1px solid rgb(var(--mpg-200));
+  border: 1px solid var(--mpg-200);
   font-size: 0.75rem;
   line-height: 1.25;
-  box-shadow: 0 6px 18px rgb(var(--mpg-900) / 0.18);
+  box-shadow: 0 6px 18px color-mix(in oklab, var(--mpg-900) 18%, transparent);
 }
 .docs-coordinate-readout {
   position: absolute;
@@ -973,7 +936,7 @@ aside .theme-input {
   z-index: 3;
   padding: 0.45rem 0.6rem;
   border-radius: 0.375rem;
-  background: rgb(var(--mpg-900) / 0.88);
+  background: color-mix(in oklab, var(--mpg-900) 88%, transparent);
   color: white;
   font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
   font-size: 0.75rem;
@@ -984,10 +947,10 @@ aside .theme-input {
 /* ── Rendered markdown article body ── */
 .docs-article {
   max-width: 70rem;
-  color: rgb(var(--mpg-800));
+  color: var(--mpg-800);
 }
 .dark .docs-article {
-  color: rgb(var(--mpg-100));
+  color: var(--mpg-100);
 }
 .docs-article h1,
 .docs-article h2,
@@ -1010,17 +973,17 @@ aside .theme-input {
   padding-left: 1.35rem;
 }
 .docs-article a {
-  color: rgb(var(--color-primary));
+  color: var(--color-primary);
   text-decoration: underline;
 }
 .docs-article blockquote {
   margin: 0.75rem 0;
   padding: 0.35rem 0.8rem;
-  border-left: 3px solid rgb(var(--color-primary));
-  background: rgb(var(--mpg-200) / 0.35);
+  border-left: 3px solid var(--color-primary);
+  background: color-mix(in oklab, var(--mpg-200) 35%, transparent);
 }
 .dark .docs-article blockquote {
-  background: rgb(var(--mpg-800) / 0.7);
+  background: color-mix(in oklab, var(--mpg-800) 70%, transparent);
 }
 .docs-article img {
   max-width: 100%;
@@ -1032,15 +995,15 @@ aside .theme-input {
   overflow-x: auto;
   padding: 0.9rem;
   border-radius: 0.5rem;
-  background: rgb(var(--mpg-900));
-  color: rgb(var(--mpg-100));
+  background: var(--mpg-900);
+  color: var(--mpg-100);
   white-space: pre;
   tab-size: 2;
 }
 .docs-article .codehilite {
   margin: 0.75rem 0;
   border-radius: 0.5rem;
-  background: rgb(var(--mpg-900));
+  background: var(--mpg-900);
 }
 .docs-article .codehilite pre {
   margin: 0;
@@ -1051,35 +1014,35 @@ aside .theme-input {
 .docs-article :not(pre) > code {
   padding: 0.08rem 0.28rem;
   border-radius: 0.25rem;
-  background: rgb(var(--mpg-200) / 0.45);
+  background: color-mix(in oklab, var(--mpg-200) 45%, transparent);
 }
 .dark .docs-article :not(pre) > code {
-  background: rgb(var(--mpg-800) / 0.9);
+  background: color-mix(in oklab, var(--mpg-800) 90%, transparent);
 }
 .docs-article table {
   width: auto;
   max-width: 100%;
   margin: 0.75rem 0;
-  border: 1px solid rgb(var(--mpg-200));
+  border: 1px solid var(--mpg-200);
   border-collapse: collapse;
 }
 .docs-article th,
 .docs-article td {
   padding: 0.4rem 0.55rem;
-  border: 1px solid rgb(var(--mpg-200));
+  border: 1px solid var(--mpg-200);
   vertical-align: top;
 }
 .docs-article th {
-  background: rgb(var(--mpg-100) / 0.8);
+  background: color-mix(in oklab, var(--mpg-100) 80%, transparent);
   font-weight: 700;
 }
 .dark .docs-article table,
 .dark .docs-article th,
 .dark .docs-article td {
-  border-color: rgb(var(--mpg-600));
+  border-color: var(--mpg-600);
 }
 .dark .docs-article th {
-  background: rgb(var(--mpg-800));
+  background: var(--mpg-800);
 }
 
 /* ── Syntax highlighting (Pygments "codehilite" token classes) ── */

@@ -1233,24 +1233,50 @@ class BridgeDeletionResult(TypedDict):
 
 def delete_bridge(db: "Session", bridge_name: str) -> BridgeDeletionResult:
     """
-    Permanently deletes a bridge's [transport.<bridge_name>] section from
-    the staging DB, and — in the same transaction — strips any reference
-    to that bridge from every scraper's "bridge" setting (the comma-
-    separated "transport.<name>, ..." multi-select value written by the
-    bridge picker in scraper_panes.html; see
-    device_service.ensure_bridge_sections_exist for the create-time half
-    of this relationship).
+    Stages the deletion of a bridge's [transport.<bridge_name>] section —
+    and, in the same transaction, strips any reference to that bridge from
+    every scraper's "bridge" setting (the comma-separated
+    "transport.<name>, ..." multi-select value written by the bridge
+    picker in scraper_panes.html; see device_service.ensure_bridge_sections_exist
+    for the create-time half of this relationship).
 
-    This is a hard delete, not a stage-for-commit — the same choice
-    device_service.delete_orphan()/delete_orphans_bulk() make for orphaned
-    settings, and for the same reason: a deletion isn't a value to write
-    back on commit, it's the absence of the row. config_writer's
-    _build_config_text() only ever emits a [section] header for rows it
-    still has (see that function's docstring), so once these rows are
-    gone the bridge's section simply stops appearing in config.cfg the
-    next time "Commit" runs — this function doesn't touch config.cfg (or
-    any other file) directly, exactly like every other Setting edit in
-    this module keeps to the DB and leaves the disk write to commit_all().
+    This is a SOFT delete — every Setting row in the section is marked
+    is_active=False (with is_dirty set so it's correctly counted as a
+    pending change; see below), not removed from the DB outright. That's
+    a deliberate departure from device_service.delete_orphan()'s hard
+    db.delete(): an orphan is dead weight nothing depends on, but a
+    bridge section might currently be sitting on disk with real values
+    that need to be actively removed from config.cfg — is_active=False
+    is this app's established way of staging "this key should no longer
+    be in the config" (see routers/devices.py's update_setting()/
+    update_device_setting() for the identical per-key convention this
+    mirrors, and config_writer._reset_dirty_flags(), which already
+    performs the disk-side half of this contract on every commit:  for
+    an inactive+dirty row, it blanks value_disk/value_staged to "" and
+    clears is_dirty, reflecting that the key is now confirmed gone from
+    config.cfg). config_writer._build_config_text() already skips any
+    row where is_active is False when grouping rows into sections (see
+    that function's docstring), so once every row in this section is
+    inactive, the section simply stops appearing in config.cfg — header
+    included — the next time "Commit" runs. Like every other function in
+    this module, this doesn't touch config.cfg (or any other file)
+    directly; the disk write stays commit_all()'s job.
+
+    Each row's is_dirty is computed the same way update_device_setting()
+    computes it when deactivating a key — bool(value_disk), not forced
+    True unconditionally — so a bridge that was staged but never
+    committed (value_disk still empty for every key) produces zero dirty
+    rows on delete: removing something that was never actually on disk
+    isn't a change disk needs to know about.
+
+    Because these rows are deactivated rather than removed, the caller
+    is also responsible for making sure a soft-deleted bridge stops
+    appearing as a live device — see device_service.get_nav_data() and
+    get_device_summary(), both of which now require at least one active
+    row per section before treating it as an existing device. Without
+    that half of the fix, a soft-deleted bridge would still show up in
+    the nav/device page (since its rows still physically exist), even
+    though it's correctly staged for removal on next commit.
 
     The scraper-side "bridge" values are edited by removing just the
     deleted bridge's "transport.<bridge_name>" entry from the comma list
@@ -1284,13 +1310,42 @@ def delete_bridge(db: "Session", bridge_name: str) -> BridgeDeletionResult:
         _log.warning("delete_bridge: %s", msg)
         raise ValueError(msg)
 
+    # Soft-delete: mark every row inactive rather than db.delete()-ing it.
+    # This matters for one specific case — a bridge whose section header
+    # exists in config.cfg with few or no explicit keys under it, relying
+    # entirely on its transport class's code-level defaults. Such a row
+    # can easily have value_staged == value_disk (nothing ever staged an
+    # edit to it), so a hard delete here removes it from the DB with zero
+    # trace that a change is now pending: refresh_app_state()'s dirty
+    # count (services this file doesn't otherwise touch — see
+    # database.refresh_app_state()) is a COUNT of Setting.is_dirty rows,
+    # and a row that's simply gone can never be counted, so "Commit All
+    # Changes" would never light up and the deletion would never reach
+    # config.cfg — exactly the bug this replaced.
+    #
+    # is_active=False + is_dirty=<computed> is the established mechanism
+    # for exactly this ("a key is being intentionally removed") — see
+    # routers/devices.py's update_setting()/update_device_setting(), and
+    # config_writer._reset_dirty_flags()'s handling of inactive rows,
+    # which already does the disk-side half of this contract (clears
+    # value_disk/value_staged to "" and un-dirties once the removal is
+    # actually committed). Deleting an entire bridge is just this same
+    # per-key mechanism applied to every row in its section at once.
+    #
+    # Dirty is computed the same way devices.py does it, not forced to
+    # True unconditionally: a row that never had a value on disk in the
+    # first place (value_disk falsy — e.g. a bridge staged-but-never-
+    # committed, then deleted before ever reaching config.cfg) removing
+    # it changes nothing on disk, so it shouldn't count as a pending
+    # change requiring a commit either.
     deleted_keys: int = len(rows)
     for row in rows:
-        db.delete(row)
+        row.is_active = False
+        row.is_dirty = bool(row.value_disk)
 
     # Strip this bridge from every scraper's "bridge" multi-select value so
     # a commit doesn't leave a dangling "bridge = transport.<bridge_name>"
-    # reference pointing at a section that no longer exists in the DB.
+    # reference pointing at a section that no longer exists.
     reference: str = section
     updated_scrapers: list[str] = []
 
