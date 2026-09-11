@@ -638,6 +638,46 @@ aside .theme-input {
   color: var(--mpg-400);      /* mpg-400 */
 }
 
+/* ── Protocol register table: clipped cells with hover tooltip ────────── */
+/* #protocol-register-table (protocol_table.html) is an auto-layout table: */
+/* without an explicit cap, a cell's unbroken content (a long live Value   */
+/* reading, an Adjustments JSON blob, a long Note) either stretches its    */
+/* column past the table's declared width (Value, which had               */
+/* `whitespace-nowrap` and nothing to stop it growing) or wraps onto extra */
+/* lines within the cell (Adjustments' old `break-all`), which inflates    */
+/* that one row's height relative to every other row.                     */
+/*                                                                         */
+/* the displayed text in each of these cells is wrapped in a      */
+/* <span class="reg-clip ...">; each variant below caps that span to the   */
+/* same width already declared on that column's <th> (so the visual       */
+/* column width never changes), forces it to stay on one line, and         */
+/* ellipsizes anything that doesn't fit. The cell's `title` attribute      */
+/* (already set server-side for static columns; set by JS for the live    */
+/* Value column) supplies the full text as a native hover tooltip.         */
+.reg-clip {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+/* Value — the user-facing ask was specifically a ~20-character cap. */
+.reg-clip--value {
+  max-width: 20ch;
+}
+/* Everything else clips to its own column's declared <th> width instead   */
+/* of a fixed character count, since these columns are intentionally wider */
+/* than Value and vary in width from each other.                          */
+.reg-clip--documented,
+.reg-clip--adjustments {
+  max-width: 14rem;   /* matches th.w-56 */
+}
+.reg-clip--range {
+  max-width: 8rem;    /* matches th.w-32 */
+}
+.reg-clip--note {
+  max-width: 28rem;   /* matches th.min-w-md */
+}
+
 /* ── Column header row above a wizard-driven editable grid/table ── */
 /* (Create Scraper settings key/value/default row, Create Protocol         */
 /* Register Map CSV header). Theme-adaptive, unlike a hardcoded            */

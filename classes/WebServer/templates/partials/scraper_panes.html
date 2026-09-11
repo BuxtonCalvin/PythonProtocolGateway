@@ -548,6 +548,9 @@
       const key = cell.dataset.valueKey;
       if (key && values[key] !== undefined) {
         cell.textContent = values[key];
+        // Cell is clipped to ~20 characters (.reg-clip--value) — title gives
+        // the full value as a native hover tooltip when it's been truncated.
+        cell.title = values[key];
         // Switch from placeholder styling to green populated styling
         cell.classList.remove('text-mpg-500');
         cell.classList.add('text-green-600');
@@ -555,6 +558,7 @@
       } else {
         // Reset to placeholder if no value available
         cell.textContent = '—';
+        cell.removeAttribute('title');
         cell.classList.remove('text-green-600');
         cell.classList.add('text-mpg-500');
       }

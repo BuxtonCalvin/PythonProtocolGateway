@@ -494,8 +494,8 @@ def refresh_protocol_tabs(
         if payload.new_protocol else None
     )
 
-    templates = request.app.state.templates
-    html = templates.get_template("partials/protocol_section.html").render({
+    templates: Any = request.app.state.templates
+    html: Any  = templates.get_template("partials/protocol_section.html").render({
         "device": summary,
         "proto_tabs": proto_tabs,
         "has_no_selections": has_no_selections,
@@ -586,7 +586,7 @@ def update_setting(device_name: str, setting_id: int, payload: SettingUpdate, re
 
 
 @router.get("/orphan-modal", response_class=HTMLResponse, response_model=None)
-async def orphan_modal(request: Request):
+async def orphan_modal(request: Request) -> Any:
     """HTMX partial — orphan review modal content."""
     with session_scope() as db:
         orphans: List[Setting] = get_orphaned_settings(db)
