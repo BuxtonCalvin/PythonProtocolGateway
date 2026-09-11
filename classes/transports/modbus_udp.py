@@ -17,9 +17,10 @@
 
 from __future__ import annotations
 
+from threading import RLock
+
 # scraper for Modbus UDP devices, inheriting from modbus_base and implementing UDP-specific client setup and register access logic.
-from threading import Lock
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from pymodbus.client.base import ModbusBaseSyncClient
 from pymodbus.client.udp import ModbusUdpClient
@@ -30,8 +31,6 @@ from defs.common import TransportSettings
 
 from .modbus_base import modbus_base
 
-if TYPE_CHECKING:
-    from threading import Lock
 
 class modbus_udp(modbus_base):
 
@@ -75,7 +74,7 @@ class modbus_udp(modbus_base):
 
         sync_client: ModbusBaseSyncClient = self.client
         resolved_device_id: int = self._get_device_id(device_id)
-        port_lock: Lock = self._get_port_lock()
+        port_lock: RLock = self._get_port_lock()
 
         with port_lock:
         # Try the operation up to 'retries' times
