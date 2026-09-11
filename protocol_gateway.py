@@ -17,7 +17,7 @@
 # limitations under the License.
 
 """
-Main module for Inverters ModBus RTU data to MQTT
+Main module for Inverters ModBus data to various bridges.
 """
 from __future__ import annotations
 
@@ -2236,12 +2236,6 @@ def main(args: list[str] | None = None) -> None:
     manager = GatewayManager(config_file, config_path)
     mpg: Protocol_Gateway = manager.start()
 
-    # mpg.log_path is the single, already-resolved absolute log file path
-    # that Protocol_Gateway._setup_logging() actually configured the root
-    # logger with -- reusing it here (rather than independently re-parsing
-    # [logging].log_dir/log_file from a second CustomConfigParser) means
-    # the WebServer's log-file-path handling (see routers/pages.py's
-    # read_log()) can never disagree with where logging is truly writing.
     start_webserver(config_path, mpg.log_path, gateway_instance=mpg, gateway_manager=manager)
 
     # run() executes on its own thread (started inside manager.start()),

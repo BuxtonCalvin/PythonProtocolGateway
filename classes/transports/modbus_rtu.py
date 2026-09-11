@@ -21,8 +21,8 @@
 
 from __future__ import annotations
 
-from threading import Lock
-from typing import TYPE_CHECKING, Any
+from threading import RLock
+from typing import Any
 
 import serial
 from pymodbus.client import ModbusSerialClient
@@ -39,8 +39,6 @@ from defs.common import (
 
 from .modbus_base import modbus_base
 
-if TYPE_CHECKING:
-    from threading import Lock
 
 class modbus_rtu(modbus_base):
 
@@ -94,7 +92,7 @@ class modbus_rtu(modbus_base):
 
         sync_client: ModbusBaseSyncClient = self.client
         resolved_device_id: int = self._get_device_id(device_id)
-        port_lock: Lock = self._get_port_lock()
+        port_lock: RLock= self._get_port_lock()
         result: ModbusPDU | None = None
         with port_lock:
             try:
