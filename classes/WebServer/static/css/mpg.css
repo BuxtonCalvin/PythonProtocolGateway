@@ -19,8 +19,14 @@
  * limitations under the License.
  *
  * ────────────────────────────────────────────────────────────────────────
- * Color tokens are defined here as literal rgb() values and consumed by
- * Tailwind utilities. Dark mode is class-based (class="dark" on <html>).
+ * Color tokens are defined here as complete CSS colors (hex) and consumed
+ * bare via var(--mpg-X) — see section 0 below for the full rationale.
+ * Dark mode is class-based (class="dark" on <html>).
+ *
+ * LAYERING (2026-09): this entire file lives inside @layer components,
+ * joining the empty "components" layer slot Tailwind v4 itself reserves
+ * (see tailwind.css's declared order: properties, theme, base, components,
+ * utilities — later wins).
  *
  * File organization (general → specific, shared → page-specific):
  *   1. Accessibility & base element defaults
@@ -38,6 +44,8 @@
  *  13. Page-specific: Help / Docs article renderer
  * ────────────────────────────────────────────────────────────────────────
  */
+
+@layer components {
 
 /* ══════════════════════════════════════════════════════════════════════
    0. DESIGN TOKENS
@@ -63,7 +71,7 @@
    NAMING — why these are --mpg-* and not --color-*:
    Independently of the format, five of these tokens (accent, success,
    warning, danger, dirty) used to be spelled --color-*, identically to
-   the five same-named tokens in Tailwind's theme block above. Because
+   the five same-named tokens in Tailwind's @theme block above. Because
    this stylesheet has no @layer, its :root block always wins the
    cascade over Tailwind's layered one, regardless of specificity or
    link order — so this file's declaration silently overwrote
@@ -115,7 +123,26 @@
   --color-input-hover-border: #648cb4;
   --color-tab-active-dark: #38485f;     /* raised tab-active background on dark panels */
 }
+/* Note on --mpg-900: base.html's original palette defined this as
+   rgb(15 25 35), but .theme-input's dark branch, .chrome-input,
+   .ts-description-input, and .diff-table-header had all independently
+   drifted to a second, slightly bluer near-black (rgb(15 23 42)) instead
+   — both were informally labeled "mpg-900" in comments. Merged into one
+   token at rgb(15 23 42) (2026-08, explicit decision): the scrollbar
+   track and the Help/Docs screenshot frame / code block backgrounds
+   shift very slightly bluer as a result; every other --mpg-900 usage was
+   already at this value. */
 
+/* ── Brand mark — the "MPG" text logo in the top nav ─────────────────────
+   Flat color only, no glow/gradient (the source logo artwork has those,
+   this intentionally doesn't). Uses --color-primary rather than
+   --mpg-accent: --mpg-accent is reused everywhere for focus rings,
+   active tabs, and links, so tying the brand mark to it would mean any
+   future accent-color change also silently recolors the logo. Decoupling
+   the two lets each vary independently. Dark mode swaps to the lighter
+   --mpg-accent tone for a bit more contrast against the header's
+   near-black background — same light/dark token-swap pattern used
+   throughout this file (e.g. .label below), just applied to one element. */
 .brand-mark {
   color: var(--color-primary);
 }
@@ -248,6 +275,19 @@ aside .card {
   border-color: var(--mpg-warning);
 }
 
+/* ── Bridge panes grid (bridge_panes.html) ── */
+/* Two-column split at the lg breakpoint: left pane 1.5in narrower than   */
+/* 50%, right pane 1.5in wider — left holds the compact config tree,      */
+/* right holds the wider live-data table. Previously written inline as a  */
+/* Tailwind arbitrary value:                                              */
+/*   lg:grid-cols-[calc(50%_-_1.5in)_calc(50%_+_1.5in)]                   */
+/* Moved here because the underscore-as-space syntax that arbitrary value */
+/* requires is easy to break: a formatter or find/replace that strips     */
+/* underscores turns `50%_-_1.5in` into `50%-1.5in`, which is invalid     */
+/* CSS (calc() requires whitespace around binary +/-), silently killing   */
+/* the whole declaration and collapsing the two-pane layout. As a plain   */
+/* named class, this can't be "canonicalized" or reformatted by the       */
+/* Tailwind toolchain since it isn't a Tailwind utility.                  */
 .bridge-panes-grid {
   grid-template-columns: 1fr;
 }
@@ -1100,3 +1140,5 @@ aside .theme-input {
 .docs-article .codehilite .w { color: #cbd5e1 !important; }
 .docs-article .codehilite .err { color: #fca5a5 !important; }
 /* stylelint-enable color-no-hex, declaration-property-value-disallowed-list */
+
+} /* end @layer components */
