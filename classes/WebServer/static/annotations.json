@@ -10,44 +10,53 @@
       "shape_type": "dot"
     },
     {
+      "id": "dashboard-rescan",
+      "x_percent": 3.9881844380403457,
+      "y_percent": 63.864463918684656,
+      "label_x_percent": 9.888184438040348,
+      "label_y_percent": 38.37133693792704,
+      "label": "Re-scan Configuration reloads config.cfg and protocol files without restarting. Rollback Configuration reverts to the last committed backup.",
+      "shape_type": "dot"
+    },
+    {
+      "id": "dashboard-dot-rollback",
+      "x_percent": 4.12363112391931,
+      "y_percent": 71.56214069309908,
+      "label": "Rollback to your previous config file.",
+      "shape_type": "dot",
+      "label_x_percent": 0.17953890489915025,
+      "label_y_percent": 83.68057221182856
+    },
+    {
+      "id": "dashboard-dot-reload",
+      "x_percent": 3.9043227665706053,
+      "y_percent": 79.44864068528935,
+      "label": "Reload the MPG app to allow settings to take hold.",
+      "shape_type": "dot",
+      "label_x_percent": 0,
+      "label_y_percent": 95.60101809372509
+    },
+    {
       "id": "dashboard-devices",
       "x_percent": 62.1,
       "y_percent": 42.7,
       "label_x_percent": 63.4,
       "label_y_percent": 79,
-      "width_percent": 73.1,
-      "height_percent": 68.3,
+      "width_percent": 73.38818443804033,
+      "height_percent": 74.07432034264467,
       "label": "Configured scrapers and bridges are listed here. Click Configure to jump directly to a device's setup screen.",
       "shape_type": "rect",
       "stroke_color": "rgb(14,165,233)",
       "fill_color": "rgba(14,165,233,0.18)"
     },
     {
-      "id": "dashboard-rescan",
-      "x_percent": 3.7,
-      "y_percent": 54,
-      "label_x_percent": 9.6,
-      "label_y_percent": 33.8,
-      "label": "Re-scan Configuration reloads config.cfg and protocol files without restarting. Rollback Configuration reverts to the last committed backup.",
-      "shape_type": "dot"
-    },
-    {
-      "id": "dashboard-dot-rollback",
-      "x_percent": 3.6913544668587908,
-      "y_percent": 61.21648341252736,
-      "label": "Rollback to your previous config file.",
+      "id": "dashboard-dot-Bridges-Scrapers",
+      "x_percent": 69.1,
+      "y_percent": 49.6,
+      "label": "A Scrapers bridges, or a Bridges scrapers can be configured by clicking on the name here.",
       "shape_type": "dot",
-      "label_x_percent": 0.9000000000000137,
-      "label_y_percent": 72.37252820748274
-    },
-    {
-      "id": "dashboard-dot-reload",
-      "x_percent": 3.4,
-      "y_percent": 67.9,
-      "label": "Reload the MPG app to allow settings to take hold.",
-      "shape_type": "dot",
-      "label_x_percent": 1.1,
-      "label_y_percent": 83.9
+      "label_x_percent": 77.2,
+      "label_y_percent": 40.2
     }
   ],
   "device__scraper_read_generic": [
