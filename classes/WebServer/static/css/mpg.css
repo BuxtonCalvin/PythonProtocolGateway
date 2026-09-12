@@ -679,27 +679,27 @@ aside .theme-input {
 }
 
 /* ── Dashboard: Scrapers / Bridges table column widths ─────────────────── */
-/* Both tables use table-layout:fixed with every column width declared     */
-/* here in `ch` (the width of "0" in the header's font) so each header     */
-/* lands at a specific character offset from the start of its table:       */
+/* Both tables use table-layout:fixed with every column width declared      */
+/* here in `ch` (the width of "0" in the header's font) so each header      */
+/* lands at a specific character offset from the start of its table:        */
 /*                                                                          */
-/*   Scrapers:  Name(0) Transport(25ch) Host(50ch) Protocol(75ch)          */
-/*              Bridges(100ch) Action(unchanged)                          */
-/*   Bridges:   Name(0) Transport(25ch) Host(50ch) Scrapers(100ch)         */
-/*              Action(unchanged)                                          */
+/*   Scrapers:  Name(0) Transport(20ch) Host(40ch) Protocol(60ch)           */
+/*              Bridges(80ch) Action(unchanged)                            */
+/*   Bridges:   Name(0) Transport(20ch) Host(40ch) Scrapers(80ch)          */
+/*              Action(unchanged)                                           */
 /*                                                                          */
-/* The Bridges table's Host column is twice as wide (50ch, vs. 25ch on the */
-/* Scrapers table) because Bridges has no Protocol column to fill that     */
-/* stretch — this is what lands "Scrapers" at 100ch, directly under        */
-/* "Bridges" on the table above.                                          */
+/* The Bridges table's Host column is twice as wide (50ch, vs. 25ch on the  */
+/* Scrapers table) because Bridges has no Protocol column to fill that      */
+/* stretch — this is what lands "Scrapers" at 100ch, directly under         */
+/* "Bridges" on the table above.                                            */
 .dash-col-name,
 .dash-col-transport,
 .dash-col-host-scraper,
 .dash-col-protocol {
-  width: 25ch;
+  width: 20ch;
 }
 .dash-col-host-bridge {
-  width: 50ch;
+  width: 40ch;
 }
 .dash-col-linked {
   width: 16rem;
