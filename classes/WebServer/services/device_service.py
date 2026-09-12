@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import logging
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Sequence
 
@@ -62,6 +62,11 @@ class DeviceSummary:
     host: str
     port: str
     is_connected: bool = False   # runtime status — set by gateway if available
+    # For a scraper: the bridge device_names it writes to (parsed from its
+    # "bridge" setting). For a bridge: the scraper device_names that write
+    # to it (the reverse of the above, computed in get_nav_data()).
+    linked_bridges: list[str] = field(default_factory=list[str])
+    linked_scrapers: list[str] = field(default_factory=list[str])
 
 
 @dataclass
@@ -69,6 +74,26 @@ class NavData:
     scrapers: list[DeviceSummary]
     bridges: list[DeviceSummary]
     protocol_groups: list[str]
+
+
+def _parse_bridge_names(bridge_value: str) -> list[str]:
+    """
+    Parse a scraper's raw "bridge" setting value — a comma-separated list of
+    "transport.<name>" entries (see scraper_panes.html's bridge multi-select)
+    — into a clean, ordered list of bridge device_names, dropping any blank
+    or malformed entries. Shared by get_nav_data() (dashboard display) and
+    ensure_bridge_sections_exist() (staging DB seeding).
+    """
+    if not bridge_value:
+        return []
+    names: list[str] = []
+    for part in bridge_value.split(","):
+        part = part.strip()
+        if part.startswith("transport."):
+            name = part.removeprefix("transport.")
+            if name:
+                names.append(name)
+    return names
 
 
 def get_nav_data(db: Session) -> NavData:
@@ -100,6 +125,13 @@ def get_nav_data(db: Session) -> NavData:
         .all()
     )
 
+    # scraper device_name -> list of bridge device_names it writes to,
+    # keyed off each scraper's raw "bridge" setting value (a comma-separated
+    # list of "transport.<name>" entries — same format written by the
+    # bridge multi-select in scraper_panes.html and read by
+    # ensure_bridge_sections_exist() above).
+    bridge_names_by_scraper: dict[str, list[str]] = {}
+
     for section in sorted(sections):
         device_name: str = section.removeprefix("transport.")
         keys: dict[str, str] = _get_section_keys(db, section)
@@ -107,6 +139,10 @@ def get_nav_data(db: Session) -> NavData:
         transport_class: str = keys.get("transport", "")
         protocol_version: str = keys.get("protocol_version", "")
         transport_type: str = keys.get("transport_type_cached", "general")
+
+        linked_bridges: list[str] = _parse_bridge_names(keys.get("bridge", ""))
+        if transport_type == "scraper":
+            bridge_names_by_scraper[device_name] = linked_bridges
 
         summary = DeviceSummary(
             name=device_name,
@@ -116,12 +152,25 @@ def get_nav_data(db: Session) -> NavData:
             protocol_version=protocol_version,
             host=keys.get("host", ""),
             port=keys.get("port", ""),
+            linked_bridges=linked_bridges,
         )
 
         if transport_type == "scraper":
             scrapers.append(summary)
         elif transport_type == "bridge":
             bridges.append(summary)
+
+    # Reverse the scraper -> bridges mapping so each bridge in the dashboard
+    # can list every scraper that feeds it (the "Scrapers" column on the
+    # Bridges table — see index.html).
+    scraper_names_by_bridge: dict[str, list[str]] = {}
+    for scraper_name, linked in bridge_names_by_scraper.items():
+        for bridge_name in linked:
+            scraper_names_by_bridge.setdefault(bridge_name, []).append(scraper_name)
+    for bridge_summary in bridges:
+        bridge_summary.linked_scrapers = sorted(
+            scraper_names_by_bridge.get(bridge_summary.name, [])
+        )
 
     # Protocol groups from ProtocolRegister table
     from ..models import ProtocolRegister

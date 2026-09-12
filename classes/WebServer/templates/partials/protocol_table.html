@@ -122,10 +122,11 @@
 
           {# Value cell — last known value, populated on table load and by Refresh Values #}
           {% if device_name %}
-          <td class="px-2 py-1.5 font-mono text-xs whitespace-nowrap
-                     bg-mpg-700/5 border-r border-mpg-700/20 text-mpg-500"
-              role="cell"
-              data-value-key="{{ row.variable_name }}">—</td>
+          <td class="px-2 py-1.5 font-mono text-xs
+                     bg-mpg-700/5 border-r border-mpg-700/20"
+              role="cell">
+            <span class="reg-clip reg-clip--value text-mpg-500" data-value-key="{{ row.variable_name }}">—</span>
+          </td>
           {% endif %}
           {% if not device_name and registry_type != 'json' %}
           <td class="px-2 py-1.5 text-center border-r border-mpg-700/30" role="cell">
@@ -174,7 +175,7 @@
 
           <td class="px-2 py-1.5 text-mpg-500 dark:text-mpg-100" title="{{ row.documented_name }}" role="cell">
             {% if device_name %}
-            {{ row.documented_name }}
+            <span class="reg-clip reg-clip--documented">{{ row.documented_name }}</span>
             {% else %}
             <input type="text"
                    class="w-full bg-mpg-200 border border-mpg-400 rounded px-1 py-0.5 surface-title dark:bg-mpg-700/75 dark:border-mpg-500 dark:text-mpg-50"
@@ -216,7 +217,7 @@
 
           <td class="px-2 py-1.5 text-mpg-500 dark:text-mpg-100" title="{{ row.values_range or '' }}" role="cell">
             {% if device_name %}
-            {{ row.values_range or '' }}
+            <span class="reg-clip reg-clip--range">{{ row.values_range or '' }}</span>
             {% else %}
             <input type="text"
                    class="w-full bg-mpg-200 border border-mpg-400 rounded px-1 py-0.5 surface-title dark:bg-mpg-700/75 dark:border-mpg-500 dark:text-mpg-50"
@@ -239,10 +240,10 @@
           </td>
 
           {# Adjustments — most important for 32-bit pairs (Register_Endian JSON lives here) #}
-          <td class="px-2 py-1.5 text-mpg-500 dark:text-mpg-100 font-mono text-xs break-all"
+          <td class="px-2 py-1.5 text-mpg-500 dark:text-mpg-100 font-mono text-xs"
               title="{{ row.adjustments | string if row.adjustments else '' }}" role="cell">
             {% if device_name %}
-            {{ row.adjustments | string if row.adjustments else '' }}
+            <span class="reg-clip reg-clip--adjustments">{{ row.adjustments | string if row.adjustments else '' }}</span>
             {% else %}
             <input type="text"
                    class="w-full bg-mpg-200 border border-mpg-400 rounded px-1 py-0.5 surface-title font-mono dark:bg-mpg-700/75 dark:border-mpg-500 dark:text-mpg-50"
@@ -258,7 +259,7 @@
 
           <td class="px-2 py-1.5 text-mpg-500 dark:text-mpg-100" title="{{ row.note or '' }}" role="cell">
             {% if device_name %}
-            {{ row.note or '' }}
+            <span class="reg-clip reg-clip--note">{{ row.note or '' }}</span>
             {% else %}
             <input type="text"
                    class="w-full bg-mpg-200 border border-mpg-400 rounded px-1 py-0.5 surface-title dark:bg-mpg-700/75 dark:border-mpg-500 dark:text-mpg-50"
@@ -465,10 +466,11 @@
 
           {# Value cell — last known value, populated on table load and by Refresh Values #}
           {% if device_name %}
-          <td class="px-2 py-1.5 font-mono text-xs whitespace-nowrap
-                     bg-mpg-700/5 border-r border-mpg-700/20 text-mpg-500"
-              role="cell"
-              data-value-key="{{ row.variable_name }}">—</td>
+          <td class="px-2 py-1.5 font-mono text-xs
+                     bg-mpg-700/5 border-r border-mpg-700/20"
+              role="cell">
+            <span class="reg-clip reg-clip--value text-mpg-500" data-value-key="{{ row.variable_name }}">—</span>
+          </td>
           {% endif %}
           {% if not device_name and registry_type != 'json' %}
           <td class="px-2 py-1.5 text-center border-r border-mpg-700/30" role="cell">
@@ -524,7 +526,7 @@
 
           <td class="px-2 py-1.5 text-mpg-500 dark:text-mpg-100" title="{{ row.documented_name }}" role="cell">
             {% if device_name %}
-            {{ row.documented_name }}
+            <span class="reg-clip reg-clip--documented">{{ row.documented_name }}</span>
             {% else %}
             <input type="text"
                    class="w-full bg-mpg-200 border border-mpg-400 rounded px-1 py-0.5 surface-title dark:bg-mpg-700/75 dark:border-mpg-500 dark:text-mpg-50"
@@ -564,7 +566,7 @@
           </td>
           <td class="px-2 py-1.5 text-mpg-500 dark:text-mpg-100" title="{{ row.values_range or '' }}" role="cell">
             {% if device_name %}
-            {{ row.values_range or '' }}
+            <span class="reg-clip reg-clip--range">{{ row.values_range or '' }}</span>
             {% else %}
             <input type="text"
                    class="w-full bg-mpg-200 border border-mpg-400 rounded px-1 py-0.5 surface-title dark:bg-mpg-700/75 dark:border-mpg-500 dark:text-mpg-50"
@@ -586,10 +588,10 @@
             {% endif %}
           </td>
 
-          <td class="px-2 py-1.5 text-mpg-500 dark:text-mpg-100 font-mono text-xs break-all"
+          <td class="px-2 py-1.5 text-mpg-500 dark:text-mpg-100 font-mono text-xs"
               title="{{ row.adjustments | string if row.adjustments else '' }}" role="cell">
             {% if device_name %}
-            {{ row.adjustments | string if row.adjustments else '' }}
+            <span class="reg-clip reg-clip--adjustments">{{ row.adjustments | string if row.adjustments else '' }}</span>
             {% else %}
             <input type="text"
                    class="w-full bg-mpg-200 border border-mpg-400 rounded px-1 py-0.5 surface-title dark:bg-mpg-700/75 dark:border-mpg-500 dark:text-mpg-50"
@@ -603,7 +605,7 @@
 
           <td class="px-2 py-1.5 text-mpg-500 dark:text-mpg-100" title="{{ row.note or '' }}" role="cell">
             {% if device_name %}
-            {{ row.note or '' }}
+            <span class="reg-clip reg-clip--note">{{ row.note or '' }}</span>
             {% else %}
             <input type="text"
                    class="w-full bg-mpg-200 border border-mpg-400 rounded px-1 py-0.5 surface-title dark:bg-mpg-700/75 dark:border-mpg-500 dark:text-mpg-50"

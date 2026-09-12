@@ -276,11 +276,12 @@
         <table class="w-full text-sm table-fixed" role="table" aria-label="Scrapers">
           <thead>
             <tr class="text-left text-xs uppercase">
-              <th class="px-3 py-2 w-36">Name</th>
-              <th class="px-3 py-2 w-36">Transport</th>
-              <th class="px-3 py-2 w-36">Protocol</th>
-              <th class="px-3 py-2">Host</th>
-              <th class="px-3 py-2 w-24 text-right">Action</th>
+              <th class="px-3 py-2 dash-col-name">Name</th>
+              <th class="px-3 py-2 dash-col-transport">Transport</th>
+              <th class="px-3 py-2 dash-col-host-scraper">Host</th>
+              <th class="px-3 py-2 dash-col-protocol">Protocol</th>
+              <th class="pl-8 pr-3 py-2 dash-col-linked">Bridges</th>
+              <th class="px-3 py-2 dash-col-action text-right">Action</th>
             </tr>
           </thead>
           <tbody>
@@ -288,9 +289,22 @@
             <tr class="border-t transition-colors" role="row">
               <td class="px-3 py-2 font-medium surface-title">{{ s.name }}</td>
               <td class="px-3 py-2 surface-text">{{ s.transport_class }}</td>
-              <td class="px-3 py-2 surface-text text-xs">{{ s.protocol_version or '—' }}</td>
               <td class="px-3 py-2 surface-muted font-mono text-xs">
                 {{ s.host }}:{{ s.port }}
+              </td>
+              <td class="px-3 py-2 surface-text text-xs">{{ s.protocol_version or '—' }}</td>
+              <td class="pl-8 pr-3 py-2 surface-text text-xs">
+                {% if s.linked_bridges %}
+                {% for bridge_name in s.linked_bridges %}<a href="/device/{{ bridge_name }}"
+                   hx-get="/device/{{ bridge_name }}"
+                   hx-target="#main-panes"
+                   hx-swap="innerHTML"
+                   hx-push-url="true"
+                   class="text-accent hover:underline
+                          focus:outline-none focus:ring-1 focus:ring-accent">{{ bridge_name }}</a>{% if not loop.last %}, {% endif %}{% endfor %}
+                {% else %}
+                <span class="surface-muted">—</span>
+                {% endif %}
               </td>
               <td class="px-3 py-2 text-right">
                 <a href="/device/{{ s.name }}"
@@ -318,10 +332,11 @@
         <table class="w-full text-sm table-fixed" role="table" aria-label="Bridges">
           <thead>
             <tr class="text-left text-xs uppercase">
-              <th class="px-3 py-2 w-36">Name</th>
-              <th class="px-3 py-2 w-36">Transport</th>
-              <th class="px-3 py-2">Host</th>
-              <th class="px-3 py-2 w-24 text-right">Action</th>
+              <th class="px-3 py-2 dash-col-name">Name</th>
+              <th class="px-3 py-2 dash-col-transport">Transport</th>
+              <th class="px-3 py-2 dash-col-host-bridge">Host</th>
+              <th class="pl-8 pr-3 py-2 dash-col-linked">Scrapers</th>
+              <th class="px-3 py-2 dash-col-action text-right">Action</th>
             </tr>
           </thead>
           <tbody>
@@ -331,6 +346,19 @@
               <td class="px-3 py-2 surface-text">{{ b.transport_class }}</td>
               <td class="px-3 py-2 surface-muted font-mono text-xs">
                 {{ b.host }}:{{ b.port }}
+              </td>
+              <td class="pl-8 pr-3 py-2 surface-text text-xs">
+                {% if b.linked_scrapers %}
+                {% for scraper_name in b.linked_scrapers %}<a href="/device/{{ scraper_name }}"
+                   hx-get="/device/{{ scraper_name }}"
+                   hx-target="#main-panes"
+                   hx-swap="innerHTML"
+                   hx-push-url="true"
+                   class="text-accent hover:underline
+                          focus:outline-none focus:ring-1 focus:ring-accent">{{ scraper_name }}</a>{% if not loop.last %}, {% endif %}{% endfor %}
+                {% else %}
+                <span class="surface-muted">—</span>
+                {% endif %}
               </td>
               <td class="px-3 py-2 text-right">
                 <a href="/device/{{ b.name }}"
