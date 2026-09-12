@@ -696,10 +696,10 @@ aside .theme-input {
 .dash-col-transport,
 .dash-col-host-scraper,
 .dash-col-protocol {
-  width: 20ch;
+  width: 15ch;
 }
 .dash-col-host-bridge {
-  width: 40ch;
+  width: 30ch;
 }
 .dash-col-linked {
   width: 16rem;
