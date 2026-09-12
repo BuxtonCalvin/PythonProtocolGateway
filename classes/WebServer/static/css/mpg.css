@@ -647,7 +647,7 @@ aside .theme-input {
 /* lines within the cell (Adjustments' old `break-all`), which inflates    */
 /* that one row's height relative to every other row.                     */
 /*                                                                         */
-/* the displayed text in each of these cells is wrapped in a      */
+/* The fix: the displayed text in each of these cells is wrapped in a      */
 /* <span class="reg-clip ...">; each variant below caps that span to the   */
 /* same width already declared on that column's <th> (so the visual       */
 /* column width never changes), forces it to stay on one line, and         */
@@ -676,6 +676,35 @@ aside .theme-input {
 }
 .reg-clip--note {
   max-width: 28rem;   /* matches th.min-w-md */
+}
+
+/* ── Dashboard: Scrapers / Bridges table column widths ─────────────────── */
+/* Both tables use table-layout:fixed with every column width declared     */
+/* here (rather than Tailwind's w-* utilities) so the two tables — despite */
+/* being separate <table> elements — size their shared columns identically */
+/* and the new "Bridges" / "Scrapers" cross-reference column lines up      */
+/* between them. The Scrapers table has one extra column (Protocol) that   */
+/* the Bridges table doesn't, so the Bridges table's Host column is widened*/
+/* by that same amount to compensate and keep every column after it        */
+/* aligned.                                                                 */
+.dash-col-name,
+.dash-col-transport {
+  width: 9rem;
+}
+.dash-col-protocol {
+  width: 9rem;
+}
+.dash-col-host-scraper {
+  width: 14rem;
+}
+.dash-col-host-bridge {
+  width: 23rem;   /* 14rem + the 9rem Protocol column Bridges doesn't have */
+}
+.dash-col-linked {
+  width: 16rem;
+}
+.dash-col-action {
+  width: 6rem;
 }
 
 /* ── Column header row above a wizard-driven editable grid/table ── */
