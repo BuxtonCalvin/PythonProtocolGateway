@@ -278,8 +278,8 @@
             <tr class="text-left text-xs uppercase">
               <th class="px-3 py-2 dash-col-name">Name</th>
               <th class="px-3 py-2 dash-col-transport">Transport</th>
-              <th class="px-3 py-2 dash-col-protocol">Protocol</th>
               <th class="px-3 py-2 dash-col-host-scraper">Host</th>
+              <th class="px-3 py-2 dash-col-protocol">Protocol</th>
               <th class="pl-8 pr-3 py-2 dash-col-linked">Bridges</th>
               <th class="px-3 py-2 dash-col-action text-right">Action</th>
             </tr>
@@ -289,10 +289,10 @@
             <tr class="border-t transition-colors" role="row">
               <td class="px-3 py-2 font-medium surface-title">{{ s.name }}</td>
               <td class="px-3 py-2 surface-text">{{ s.transport_class }}</td>
-              <td class="px-3 py-2 surface-text text-xs">{{ s.protocol_version or '—' }}</td>
               <td class="px-3 py-2 surface-muted font-mono text-xs">
                 {{ s.host }}:{{ s.port }}
               </td>
+              <td class="px-3 py-2 surface-text text-xs">{{ s.protocol_version or '—' }}</td>
               <td class="pl-8 pr-3 py-2 surface-text text-xs">
                 {% if s.linked_bridges %}
                 {% for bridge_name in s.linked_bridges %}<a href="/device/{{ bridge_name }}"

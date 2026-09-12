@@ -680,25 +680,26 @@ aside .theme-input {
 
 /* ── Dashboard: Scrapers / Bridges table column widths ─────────────────── */
 /* Both tables use table-layout:fixed with every column width declared     */
-/* here (rather than Tailwind's w-* utilities) so the two tables — despite */
-/* being separate <table> elements — size their shared columns identically */
-/* and the new "Bridges" / "Scrapers" cross-reference column lines up      */
-/* between them. The Scrapers table has one extra column (Protocol) that   */
-/* the Bridges table doesn't, so the Bridges table's Host column is widened*/
-/* by that same amount to compensate and keep every column after it        */
-/* aligned.                                                                 */
+/* here in `ch` (the width of "0" in the header's font) so each header     */
+/* lands at a specific character offset from the start of its table:       */
+/*                                                                          */
+/*   Scrapers:  Name(0) Transport(25ch) Host(50ch) Protocol(75ch)          */
+/*              Bridges(100ch) Action(unchanged)                          */
+/*   Bridges:   Name(0) Transport(25ch) Host(50ch) Scrapers(100ch)         */
+/*              Action(unchanged)                                          */
+/*                                                                          */
+/* The Bridges table's Host column is twice as wide (50ch, vs. 25ch on the */
+/* Scrapers table) because Bridges has no Protocol column to fill that     */
+/* stretch — this is what lands "Scrapers" at 100ch, directly under        */
+/* "Bridges" on the table above.                                          */
 .dash-col-name,
-.dash-col-transport {
-  width: 9rem;
-}
+.dash-col-transport,
+.dash-col-host-scraper,
 .dash-col-protocol {
-  width: 9rem;
-}
-.dash-col-host-scraper {
-  width: 14rem;
+  width: 25ch;
 }
 .dash-col-host-bridge {
-  width: 23rem;   /* 14rem + the 9rem Protocol column Bridges doesn't have */
+  width: 50ch;
 }
 .dash-col-linked {
   width: 16rem;
